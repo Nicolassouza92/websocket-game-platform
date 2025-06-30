@@ -1,10 +1,8 @@
-// services/game-server/src/index.ts
-
-import http from 'http';
-import express from 'express';
-import { WebSocketServer, WebSocket } from 'ws';
-import { GameState } from './game/state';
-import { createInitialState, makeMove } from './game/logic';
+import http from "http";
+import express from "express";
+import { WebSocketServer, WebSocket } from "ws";
+import { GameState } from "./game/state";
+import { createInitialState, makeMove } from "./game/logic";
 
 const app = express();
 const server = http.createServer(app);
@@ -24,38 +22,66 @@ const rooms = new Map<string, GameState>();
  */
 const clientToRoomMap = new Map<WebSocket, string>();
 
-wss.on('connection', (ws: WebSocket) => {
-  console.log('Novo cliente conectado.');
+wss.on("connection", (ws: WebSocket) => {
+  console.log("Novo cliente conectado.");
 
-  ws.on('message', (message: string) => {
+  ws.on("message", (message: string) => {
     const data = JSON.parse(message);
     const { type, payload } = data;
 
     switch (type) {
-      case 'CREATE_ROOM': {
+      case "CREATE_ROOM": {
         const roomId = `room-${Math.random().toString(36).substr(2, 9)}`;
-        const playerIds = [1]; // O criador é o jogador 1
-        const initialState = createInitialState(playerIds);
-        
-        rooms.set(roomId, initialState);
+        const creatorPlayerId = 1; // O criador sempre pode ser o jogador 1
+
+         // EM VEZ DE CRIAR O ESTADO COMPLETO, CRIAMOS UMA "SALA DE ESPERA"
+        const waitingRoomState: Partial<GameState> & { players: number[] } = {
+          // Usamos Partial<GameState> porque muitas propriedades ainda não existem.
+          players: [creatorPlayerId],
+          status: "waiting", // Novo status para indicar que estamos esperando jogadores
+        };
+
+        // Armazena o estado parcial da sala de espera.
+        rooms.set(roomId, waitingRoomState as GameState); // Fazemos um 'cast' por enquanto.
         clientToRoomMap.set(ws, roomId);
 
-        ws.send(JSON.stringify({ type: 'ROOM_CREATED', payload: { roomId, gameState: initialState } }));
-        console.log(`Sala ${roomId} criada.`);
+        // Envia uma mensagem diferente, informando que a sala está esperando.
+        ws.send(JSON.stringify({
+          type: 'ROOM_CREATED',
+          payload: {
+            roomId,
+            message: 'Sala criada. Aguardando outros jogadores...',
+            // Enviamos o estado parcial para o criador
+            gameState: waitingRoomState
+          }
+        }));
+
+        console.log(`Sala ${roomId} criada e aguardando jogadores.`);
         break;
       }
 
-      case 'JOIN_ROOM': {
+      case "JOIN_ROOM": {
         const { roomId } = payload;
         const roomState = rooms.get(roomId);
 
         if (!roomState) {
-          ws.send(JSON.stringify({ type: 'ERROR', payload: { message: 'Sala não encontrada.' } }));
+          ws.send(
+            JSON.stringify({
+              type: "ERROR",
+              payload: { message: "Sala não encontrada." },
+            })
+          );
           return;
         }
 
-        if (roomState.players.length >= 3) { // Exemplo para 3 jogadores
-          ws.send(JSON.stringify({ type: 'ERROR', payload: { message: 'Sala cheia.' } }));
+        if (roomState.players.length >= 3) {
+          // Exemplo para 3 jogadores
+          ws.send(
+            JSON.stringify({
+              type: "ERROR",
+              payload: { message: "Sala cheia." },
+            })
+          );
           return;
         }
 
@@ -63,13 +89,29 @@ wss.on('connection', (ws: WebSocket) => {
         const newPlayerId = roomState.players.length + 1;
         roomState.players.push(newPlayerId);
         clientToRoomMap.set(ws, roomId);
-
         console.log(`Jogador ${newPlayerId} entrou na sala ${roomId}.`);
-        broadcast(roomId, { type: 'PLAYER_JOINED', payload: { gameState: roomState } });
+
+        if (roomState.players.length === 3) { // Quando o 3º jogador entrar
+            console.log(`Número mínimo de jogadores atingido na sala ${roomId}. Iniciando jogo!`);
+            
+            // AGORA SIM, criamos o estado inicial completo do jogo.
+            const initialState = createInitialState(roomState.players);
+            
+            // Substituímos o estado de "espera" pelo estado de jogo real.
+            rooms.set(roomId, initialState);
+            
+            // Notificamos todos na sala que o jogo começou e enviamos o estado inicial.
+            broadcast(roomId, { type: 'GAME_START', payload: { gameState: initialState } });
+        } else {
+            // Se o jogo ainda não começou, apenas notifica sobre o novo jogador.
+            broadcast(roomId, { type: 'PLAYER_JOINED', payload: { gameState: roomState } });
+        }
+
         break;
       }
       
-      case 'MAKE_MOVE': {
+
+      case "MAKE_MOVE": {
         const { roomId, playerId, column } = payload;
         const roomState = rooms.get(roomId);
 
@@ -79,18 +121,26 @@ wss.on('connection', (ws: WebSocket) => {
           const newState = makeMove(roomState, playerId, column);
           rooms.set(roomId, newState); // Atualiza o estado da sala
 
-          broadcast(roomId, { type: 'GAME_STATE_UPDATE', payload: { gameState: newState } });
+          broadcast(roomId, {
+            type: "GAME_STATE_UPDATE",
+            payload: { gameState: newState },
+          });
         } catch (error: any) {
           // Envia o erro de volta para o jogador que tentou a jogada inválida
-          ws.send(JSON.stringify({ type: 'ERROR', payload: { message: error.message } }));
+          ws.send(
+            JSON.stringify({
+              type: "ERROR",
+              payload: { message: error.message },
+            })
+          );
         }
         break;
       }
     }
   });
 
-  ws.on('close', () => {
-    console.log('Cliente desconectado.');
+  ws.on("close", () => {
+    console.log("Cliente desconectado.");
     const roomId = clientToRoomMap.get(ws);
     if (roomId) {
       // Lógica de limpeza: remover o jogador da sala, notificar outros, etc.
@@ -120,7 +170,7 @@ function broadcast(roomId: string, message: object) {
   }
 
   // Envia a mensagem para cada cliente na sala
-  clientsInRoom.forEach(client => {
+  clientsInRoom.forEach((client) => {
     if (client.readyState === WebSocket.OPEN) {
       client.send(JSON.stringify(message));
     }
