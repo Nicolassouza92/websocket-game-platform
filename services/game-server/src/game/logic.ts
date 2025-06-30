@@ -10,8 +10,8 @@ const COLS = 7;
  * @param playerIds - Um array com os IDs dos jogadores que participarão.
  */
 export function createInitialState(playerIds: PlayerId[]): GameState {
-  if (playerIds.length < 2) {
-    throw new Error("O jogo precisa de pelo menos 2 jogadores.");
+  if (playerIds.length < 3) {
+    throw new Error("O jogo precisa de pelo menos 3 jogadores para começar.");
   }
   return {
     // Cria um tabuleiro 6x7 preenchido com `null` (casas vazias).
