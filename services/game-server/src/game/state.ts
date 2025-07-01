@@ -3,7 +3,7 @@
  * `null` representa uma casa vazia.
  * Os números representam o ID do jogador que possui a peça.
  */
-export type PlayerId = number;
+export type PlayerId = number | string;
 export type Cell = PlayerId | null;
 
 /**
@@ -18,19 +18,23 @@ export type Board = Cell[][];
 export type GameStatus = "waiting" | "playing" | "finished";
 
 /**
- * A interface principal que descreve o estado completo de uma partida de Quatro em Linha.
+ * Representa um jogador com todos os seus dados.
  */
-export interface GameState {
-  roomId: string; // ID único da sala de jogo.
-  board: Board;
-  players: PlayerId[];
-  currentPlayerIndex: number; // O índice do jogador atual no array `players`.
-  status: GameStatus;
-  winner: PlayerId | null; // `null` se não houver vencedor ainda.
-}
-
 export interface Player {
   id: PlayerId;
   username: string;
   color: number; // 1: Vermelho, 2: Amarelo, 3: Azul
+}
+
+/**
+ * A estrutura completa e ÚNICA do estado de um jogo.
+ * A propriedade 'players' é a única fonte da verdade sobre os jogadores.
+ */
+export interface GameState {
+  roomId: string; // ID único da sala de jogo.
+  board: Board;
+  players: Player[]; // <- 'players' é um array de OBJETOS Player.
+  currentPlayerIndex: number; // O índice do jogador atual no array `players`.
+  status: GameStatus;
+  winner: PlayerId | null; // `null` se não houver vencedor ainda.
 }

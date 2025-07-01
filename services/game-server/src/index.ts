@@ -1,24 +1,19 @@
-// services/game-server/src/index.ts
 import http from "http";
 import { WebSocketServer, WebSocket } from "ws";
-import { createClient } from "redis";
+import { createClient, RedisClientType } from "redis";
 import { GameState, Player } from "./game/state";
 import { createInitialState, makeMove } from "./game/logic";
 
-// --- Configuração do Ambiente ---
 const PORT = process.env.PORT || 4001;
 const SERVER_ID = process.env.SERVER_ID || "default-server-id";
 const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
 
-// --- Inicialização dos Serviços ---
 const server = http.createServer();
 const wss = new WebSocketServer({ server });
-const redisClient = createClient({ url: REDIS_URL });
+const redisClient: RedisClientType = createClient({ url: REDIS_URL });
 
-// Mapeia uma conexão WebSocket (que vive nesta instância) ao seu roomId
 const clientToRoomMap = new Map<WebSocket, string>();
 
-// Função para enviar uma mensagem a todos os clientes da mesma sala NESTA instância
 function broadcast(roomId: string, message: object) {
   const messageString = JSON.stringify(message);
   for (const [client, rId] of clientToRoomMap.entries()) {
@@ -28,9 +23,7 @@ function broadcast(roomId: string, message: object) {
   }
 }
 
-// --- Lógica Principal de Conexão ---
 wss.on("connection", (ws: WebSocket, req) => {
-  // O Lobby e o NGINX garantem que a URL terá o formato: /ws/game/server-X/room-Y
   const urlParts = req.url?.split("/") || [];
   const roomId = urlParts.pop() || "";
 
@@ -42,7 +35,6 @@ wss.on("connection", (ws: WebSocket, req) => {
     return;
   }
 
-  // Associa este cliente a esta sala
   clientToRoomMap.set(ws, roomId);
   console.log(`[${SERVER_ID}] Cliente conectado e associado à sala ${roomId}`);
 
@@ -57,15 +49,13 @@ wss.on("connection", (ws: WebSocket, req) => {
           "O estado da sala não foi encontrado no Redis. A sala pode ter expirado ou nunca foi criada."
         );
       }
-      let roomState: GameState = JSON.parse(roomStateJSON);
 
-      // O Game Server só se preocupa com a lógica DENTRO do jogo
+      let roomState = JSON.parse(roomStateJSON) as GameState;
+
       switch (type) {
-        // Esta é a primeira mensagem que o cliente envia após ser redirecionado pelo lobby
         case "PLAYER_ENTERED": {
-          const newPlayer: Player = payload.player;
+          const newPlayer = payload.player as Player;
 
-          // Se o jogador já está na lista, é uma reconexão. Apenas enviamos o estado atual.
           if (roomState.players.find((p) => p.id === newPlayer.id)) {
             console.log(
               `[${SERVER_ID}] Jogador ${newPlayer.username} reconectou à sala ${roomId}.`
@@ -79,7 +69,6 @@ wss.on("connection", (ws: WebSocket, req) => {
             return;
           }
 
-          // Adiciona o novo jogador ao estado
           roomState.players.push(newPlayer);
 
           let finalState: GameState;
@@ -94,7 +83,7 @@ wss.on("connection", (ws: WebSocket, req) => {
             });
           } else {
             console.log(
-              `[${SERVER_ID}] Jogador ${newPlayer.username} entrou. Aguardando mais jogadores na sala ${roomId}.`
+              `[${SERVER_ID}] Jogador ${newPlayer.username} entrou. Aguardando mais jogadores.`
             );
             finalState = roomState;
             broadcast(roomId, {
@@ -103,7 +92,6 @@ wss.on("connection", (ws: WebSocket, req) => {
             });
           }
 
-          // Salva o estado atualizado no Redis
           await redisClient.set(roomId, JSON.stringify(finalState));
           break;
         }
@@ -133,18 +121,15 @@ wss.on("connection", (ws: WebSocket, req) => {
   ws.on("close", () => {
     clientToRoomMap.delete(ws);
     console.log(`[${SERVER_ID}] Cliente desconectado da sala ${roomId}.`);
-    // Futuramente, aqui entraria a lógica de resiliência (ex: notificar outros que o jogador saiu)
   });
 });
 
-// --- Inicialização do Servidor ---
 server.listen(PORT, async () => {
   try {
     await redisClient.connect();
-    // Anuncia-se como um servidor disponível
     await redisClient.sAdd("available_game_servers", SERVER_ID);
     console.log(
-      `[GameServer ${SERVER_ID}] Rodando na porta ${PORT} e registrado com sucesso no Redis.`
+      `[GameServer ${SERVER_ID}] Rodando na porta ${PORT} e registrado no Redis.`
     );
   } catch (error) {
     console.error(
