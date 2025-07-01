@@ -1,0 +1,56 @@
+version: "3.8"
+
+services:
+  redis:
+    image: "redis:alpine"
+    container_name: redis-cache
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+
+  lobby-server:
+    build: ./services/lobby-server
+    container_name: lobby-server
+    environment:
+      - PORT=3001
+      - REDIS_URL=redis://redis-cache:6379
+    restart: unless-stopped
+    depends_on:
+      - redis
+
+  game-server-1:
+    build: ./services/game-server
+    container_name: game-server-1
+    environment:
+      - PORT=4001
+      - SERVER_ID=server-1
+      - REDIS_URL=redis://redis-cache:6379
+    restart: unless-stopped
+    depends_on:
+      - redis
+
+  game-server-2:
+    build: ./services/game-server
+    container_name: game-server-2
+    environment:
+      - PORT=4002
+      - SERVER_ID=server-2
+      - REDIS_URL=redis://redis-cache:6379
+    restart: unless-stopped
+    depends_on:
+      - redis
+
+  nginx:
+    build: ./nginx
+    container_name: nginx-gateway
+    ports:
+      - "80:80"
+    restart: unless-stopped
+    depends_on:
+      - lobby-server
+      - game-server-1
+      - game-server-2
+
+volumes:
+  redis-data:

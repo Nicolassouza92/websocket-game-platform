@@ -1,24 +1,30 @@
 // services/game-server/src/game/logic.ts
 
-import { GameState, Board, PlayerId, Cell } from './state';
+import { GameState, Board, PlayerId, Cell } from "./state";
 
 const ROWS = 6;
-const COLS = 7;
+const COLS = 10;
 
 /**
  * Cria e retorna o estado inicial de um novo jogo.
  * @param playerIds - Um array com os IDs dos jogadores que participarão.
  */
-export function createInitialState(playerIds: PlayerId[]): GameState {
+export function createInitialState(
+  roomId: string,
+  playerIds: PlayerId[]
+): GameState {
   if (playerIds.length < 3) {
     throw new Error("O jogo precisa de pelo menos 3 jogadores para começar.");
   }
   return {
     // Cria um tabuleiro 6x7 preenchido com `null` (casas vazias).
-    board: Array(ROWS).fill(null).map(() => Array(COLS).fill(null)),
+    roomId,
+    board: Array(ROWS)
+      .fill(null)
+      .map(() => Array(COLS).fill(null)),
     players: playerIds,
     currentPlayerIndex: 0, // O primeiro jogador do array começa.
-    status: 'playing',
+    status: "playing",
     winner: null,
   };
 }
@@ -30,9 +36,13 @@ export function createInitialState(playerIds: PlayerId[]): GameState {
  * @param column - A coluna onde a peça será jogada (0 a 6).
  * @returns O novo estado do jogo após a jogada.
  */
-export function makeMove(currentState: GameState, playerId: PlayerId, column: number): GameState {
+export function makeMove(
+  currentState: GameState,
+  playerId: PlayerId,
+  column: number
+): GameState {
   // Validações de regras
-  if (currentState.status !== 'playing') {
+  if (currentState.status !== "playing") {
     throw new Error("O jogo não está em andamento.");
   }
   if (currentState.players[currentState.currentPlayerIndex] !== playerId) {
@@ -56,21 +66,22 @@ export function makeMove(currentState: GameState, playerId: PlayerId, column: nu
   }
 
   // Cria uma cópia profunda do tabuleiro para não modificar o estado original.
-  const newBoard = currentState.board.map(row => [...row]);
+  const newBoard = currentState.board.map((row) => [...row]);
   newBoard[rowPlaced][column] = playerId;
-  
+
   // Verifica se a jogada resultou em vitória
   const winner = checkWin(newBoard, playerId) ? playerId : null;
 
   // Calcula o próximo jogador
-  const nextPlayerIndex = (currentState.currentPlayerIndex + 1) % currentState.players.length;
+  const nextPlayerIndex =
+    (currentState.currentPlayerIndex + 1) % currentState.players.length;
 
   return {
     ...currentState, // Copia as propriedades do estado antigo
     board: newBoard, // Usa o novo tabuleiro
     currentPlayerIndex: nextPlayerIndex,
     winner: winner,
-    status: winner ? 'finished' : 'playing',
+    status: winner ? "finished" : "playing",
   };
 }
 
@@ -81,7 +92,7 @@ export function makeMove(currentState: GameState, playerId: PlayerId, column: nu
  */
 export function checkWin(board: Board, playerId: PlayerId): boolean {
   // Lógica para verificar 4 em linha na horizontal, vertical e diagonais.
-  
+
   // Horizontal
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c <= COLS - 4; c++) {

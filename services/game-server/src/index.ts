@@ -1,170 +1,156 @@
+// services/game-server/src/index.ts
 import http from "http";
-import express from "express";
 import { WebSocketServer, WebSocket } from "ws";
-import { createClient } from "redis"; // Importa o cliente Redis
-import { GameState } from "./game/state";
+import { createClient } from "redis";
+import { GameState, Player } from "./game/state";
 import { createInitialState, makeMove } from "./game/logic";
 
-const app = express();
-const server = http.createServer(app);
+// --- Configuração do Ambiente ---
+const PORT = process.env.PORT || 4001;
+const SERVER_ID = process.env.SERVER_ID || "default-server-id";
+const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
+
+// --- Inicialização dos Serviços ---
+const server = http.createServer();
 const wss = new WebSocketServer({ server });
+const redisClient = createClient({ url: REDIS_URL });
 
-// --- Conexão com o Redis ---
-const redisClient = createClient({
-  // Se o Redis estiver rodando localmente na porta padrão, não precisa de URL.
-  // Em produção, você usaria: { url: process.env.REDIS_URL }
-});
-redisClient.on('error', (err) => console.log('Redis Client Error', err));
-redisClient.connect(); // Inicia a conexão
-// -----------------------------
-
-
-/**
- * Mapeia cada conexão WebSocket (cliente) ao ID da sala em que ele está.
- * Este Map permanece na memória de cada instância do servidor, pois cada
- * servidor só precisa gerenciar seus próprios clientes conectados.
- */
+// Mapeia uma conexão WebSocket (que vive nesta instância) ao seu roomId
 const clientToRoomMap = new Map<WebSocket, string>();
 
+// Função para enviar uma mensagem a todos os clientes da mesma sala NESTA instância
+function broadcast(roomId: string, message: object) {
+  const messageString = JSON.stringify(message);
+  for (const [client, rId] of clientToRoomMap.entries()) {
+    if (rId === roomId && client.readyState === WebSocket.OPEN) {
+      client.send(messageString);
+    }
+  }
+}
 
-// A função wss.on('connection', ...) se torna async para poder usar await
-wss.on("connection", (ws: WebSocket) => {
-  console.log("Novo cliente conectado.");
+// --- Lógica Principal de Conexão ---
+wss.on("connection", (ws: WebSocket, req) => {
+  // O Lobby e o NGINX garantem que a URL terá o formato: /ws/game/server-X/room-Y
+  const urlParts = req.url?.split("/") || [];
+  const roomId = urlParts.pop() || "";
 
-  // A função de message também precisa ser async
+  if (!roomId.startsWith("room-")) {
+    console.error(
+      `[${SERVER_ID}] Conexão inválida recebida sem um roomId válido. URL: ${req.url}`
+    );
+    ws.close(1008, "Room ID Inválido");
+    return;
+  }
+
+  // Associa este cliente a esta sala
+  clientToRoomMap.set(ws, roomId);
+  console.log(`[${SERVER_ID}] Cliente conectado e associado à sala ${roomId}`);
+
   ws.on("message", async (message: string) => {
-    const data = JSON.parse(message);
-    const { type, payload } = data;
+    try {
+      const data = JSON.parse(message);
+      const { type, payload } = data;
 
-    switch (type) {
-      case "CREATE_ROOM": {
-        const roomId = `room-${Math.random().toString(36).substr(2, 9)}`;
-        const creatorPlayerId = 1;
-        
-        const waitingRoomState: Partial<GameState> & { players: number[] } = {
-          players: [creatorPlayerId],
-          status: "waiting",
-        };
+      const roomStateJSON = await redisClient.get(roomId);
+      if (!roomStateJSON) {
+        throw new Error(
+          "O estado da sala não foi encontrado no Redis. A sala pode ter expirado ou nunca foi criada."
+        );
+      }
+      let roomState: GameState = JSON.parse(roomStateJSON);
 
-        // Salva o estado da sala no Redis.
-        // O estado do jogo é convertido para uma string JSON para armazenamento.
-        await redisClient.set(roomId, JSON.stringify(waitingRoomState));
+      // O Game Server só se preocupa com a lógica DENTRO do jogo
+      switch (type) {
+        // Esta é a primeira mensagem que o cliente envia após ser redirecionado pelo lobby
+        case "PLAYER_ENTERED": {
+          const newPlayer: Player = payload.player;
 
-        clientToRoomMap.set(ws, roomId);
-
-        ws.send(JSON.stringify({
-          type: 'ROOM_CREATED',
-          payload: {
-            roomId,
-            message: 'Sala criada. Aguardando outros jogadores...',
-            gameState: waitingRoomState
+          // Se o jogador já está na lista, é uma reconexão. Apenas enviamos o estado atual.
+          if (roomState.players.find((p) => p.id === newPlayer.id)) {
+            console.log(
+              `[${SERVER_ID}] Jogador ${newPlayer.username} reconectou à sala ${roomId}.`
+            );
+            ws.send(
+              JSON.stringify({
+                type: "GAME_STATE_UPDATE",
+                payload: { gameState: roomState },
+              })
+            );
+            return;
           }
-        }));
-        console.log(`Sala ${roomId} criada e salva no Redis.`);
-        break;
-      }
 
-      case "JOIN_ROOM": {
-        const { roomId } = payload;
-        
-        // Busca a sala no Redis
-        const roomStateJSON = await redisClient.get(roomId);
+          // Adiciona o novo jogador ao estado
+          roomState.players.push(newPlayer);
 
-        if (!roomStateJSON) {
-          ws.send(JSON.stringify({ type: "ERROR", payload: { message: "Sala não encontrada." } }));
-          return;
+          let finalState: GameState;
+          if (roomState.players.length === 3) {
+            console.log(
+              `[${SERVER_ID}] Terceiro jogador entrou na sala ${roomId}. Iniciando o jogo!`
+            );
+            finalState = createInitialState(roomId, roomState.players);
+            broadcast(roomId, {
+              type: "GAME_START",
+              payload: { gameState: finalState },
+            });
+          } else {
+            console.log(
+              `[${SERVER_ID}] Jogador ${newPlayer.username} entrou. Aguardando mais jogadores na sala ${roomId}.`
+            );
+            finalState = roomState;
+            broadcast(roomId, {
+              type: "PLAYER_JOINED",
+              payload: { gameState: finalState },
+            });
+          }
+
+          // Salva o estado atualizado no Redis
+          await redisClient.set(roomId, JSON.stringify(finalState));
+          break;
         }
 
-        const roomState: GameState = JSON.parse(roomStateJSON);
-
-        if (roomState.players.length >= 3) {
-          ws.send(JSON.stringify({ type: "ERROR", payload: { message: "Sala cheia." } }));
-          return;
-        }
-
-        const newPlayerId = roomState.players.length + 1;
-        roomState.players.push(newPlayerId);
-        clientToRoomMap.set(ws, roomId);
-        console.log(`Jogador ${newPlayerId} entrou na sala ${roomId}.`);
-        
-        let finalGameState: GameState;
-
-        if (roomState.players.length === 3) {
-            console.log(`Número mínimo de jogadores atingido na sala ${roomId}. Iniciando jogo!`);
-            const initialState = createInitialState(roomState.players);
-            finalGameState = initialState;
-            
-            // Salva o estado de jogo INICIADO no Redis, substituindo o de espera.
-            await redisClient.set(roomId, JSON.stringify(initialState));
-            broadcast(roomId, { type: 'GAME_START', payload: { gameState: initialState } });
-
-        } else {
-            finalGameState = roomState;
-            // Salva o estado de espera ATUALIZADO (com o novo jogador) no Redis.
-            await redisClient.set(roomId, JSON.stringify(roomState));
-            broadcast(roomId, { type: 'PLAYER_JOINED', payload: { gameState: roomState } });
-        }
-
-        break;
-      }
-      
-      case "MAKE_MOVE": {
-        const { roomId, playerId, column } = payload;
-        
-        // Busca o estado atual da sala no Redis
-        const roomStateJSON = await redisClient.get(roomId);
-        if (!roomStateJSON) return;
-
-        const roomState: GameState = JSON.parse(roomStateJSON);
-
-        try {
-          // A função `makeMove` continua sendo pura, ela não sabe sobre Redis.
+        case "MAKE_MOVE": {
+          const { playerId, column } = payload;
           const newState = makeMove(roomState, playerId, column);
-          
-          // Salva o novo estado de volta no Redis
           await redisClient.set(roomId, JSON.stringify(newState));
-
-          broadcast(roomId, { type: "GAME_STATE_UPDATE", payload: { gameState: newState } });
-        } catch (error: any) {
-          ws.send(JSON.stringify({ type: "ERROR", payload: { message: error.message } }));
+          broadcast(roomId, {
+            type: "GAME_STATE_UPDATE",
+            payload: { gameState: newState },
+          });
+          break;
         }
-        break;
       }
+    } catch (error: any) {
+      console.error(
+        `[${SERVER_ID}] Erro ao processar mensagem na sala ${roomId}:`,
+        error
+      );
+      ws.send(
+        JSON.stringify({ type: "ERROR", payload: { message: error.message } })
+      );
     }
   });
 
   ws.on("close", () => {
-    // A lógica de 'close' também pode precisar interagir com o Redis no futuro,
-    // por exemplo, para remover um jogador do estado da sala.
-    console.log("Cliente desconectado.");
-    const roomId = clientToRoomMap.get(ws);
-    if (roomId) {
-      clientToRoomMap.delete(ws);
-      console.log(`Cliente removido do mapeamento da sala ${roomId}.`);
-      // Aqui entraria a lógica de resiliência da Fase 4.
-    }
+    clientToRoomMap.delete(ws);
+    console.log(`[${SERVER_ID}] Cliente desconectado da sala ${roomId}.`);
+    // Futuramente, aqui entraria a lógica de resiliência (ex: notificar outros que o jogador saiu)
   });
 });
 
-// A função de broadcast não precisa saber sobre o Redis.
-// Ela apenas envia mensagens para os clientes que *esta* instância do servidor conhece.
-function broadcast(roomId: string, message: object) {
-  const clientsInRoom: WebSocket[] = [];
-  for (const [client, rId] of clientToRoomMap.entries()) {
-    if (rId === roomId) {
-      clientsInRoom.push(client);
-    }
+// --- Inicialização do Servidor ---
+server.listen(PORT, async () => {
+  try {
+    await redisClient.connect();
+    // Anuncia-se como um servidor disponível
+    await redisClient.sAdd("available_game_servers", SERVER_ID);
+    console.log(
+      `[GameServer ${SERVER_ID}] Rodando na porta ${PORT} e registrado com sucesso no Redis.`
+    );
+  } catch (error) {
+    console.error(
+      `[GameServer ${SERVER_ID}] Falha ao iniciar ou conectar ao Redis:`,
+      error
+    );
+    process.exit(1);
   }
-
-  const messageString = JSON.stringify(message);
-  clientsInRoom.forEach((client) => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(messageString);
-    }
-  });
-}
-
-const PORT = process.env.PORT || 4001;
-server.listen(PORT, () => {
-  console.log(`Servidor de Jogo rodando na porta ${PORT}`);
 });
