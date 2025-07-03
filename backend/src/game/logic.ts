@@ -8,10 +8,12 @@ const COLS = 10;
  */
 export function createInitialState(
   roomCode: string,
-  players: Player[]
+  players: Player[],
+  host: Player // <-- MUDANÇA: Recebe o host
 ): GameState {
   return {
     roomCode,
+    host, // <-- MUDANÇA: Inclui o host no estado final
     board: Array(ROWS)
       .fill(null)
       .map(() => Array(COLS).fill(null)),

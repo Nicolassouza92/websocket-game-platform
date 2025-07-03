@@ -27,7 +27,8 @@ export interface Player {
  */
 export interface GameState {
   roomCode: string; // O código de 6 letras para entrar na sala.
-  players: Player[]; // A lista de jogadores que estão na sala.
+  host: Player; // O dono da sala.
+  players: Player[]; // A lista de jogadores que estão ativamente conectados na sala.
   board: Board; // O estado atual do tabuleiro.
   currentPlayerIndex: number; // O índice (0, 1, 2) no array 'players' para saber de quem é a vez.
   status: "waiting" | "playing" | "finished"; // O status atual da partida.
