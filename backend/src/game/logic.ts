@@ -4,27 +4,6 @@ const ROWS = 9;
 const COLS = 10;
 
 /**
- * Cria o estado inicial de um jogo que está começando.
- */
-export function createInitialState(
-  roomCode: string,
-  players: Player[],
-  host: Player // <-- MUDANÇA: Recebe o host
-): GameState {
-  return {
-    roomCode,
-    host, // <-- MUDANÇA: Inclui o host no estado final
-    board: Array(ROWS)
-      .fill(null)
-      .map(() => Array(COLS).fill(null)),
-    players: players,
-    currentPlayerIndex: 0,
-    status: "playing", // O jogo já começa com o status 'playing'
-    winner: undefined,
-  };
-}
-
-/**
  * Processa a jogada de um jogador.
  */
 export function makeMove(

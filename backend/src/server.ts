@@ -30,7 +30,13 @@ app.use(express.json());
 app.use(cookieParser());
 
 // --- Servir Arquivos Estáticos do Frontend ---
-app.use(express.static(path.join(__dirname, "../../frontend/dist")));
+app.use(express.static(path.join(__dirname, "../../frontend/src")));
+
+// --- Rota Principal para servir o index.html ---
+// Quando alguém acessar a raiz do site ('/'), envie o arquivo index.html.
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, '../../frontend/src/index.html'));
+});
 
 // --- Rotas da API REST ---
 app.use("/api/auth", authRoutes);
