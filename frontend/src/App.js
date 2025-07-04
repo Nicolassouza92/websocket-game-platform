@@ -89,7 +89,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // --- Funções de API ---
   async function apiRequest(endpoint, method = "GET", body = null) {
     try {
       const options = {
@@ -210,27 +209,31 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const host = window.location.host;
-
     state.socket = new WebSocket(`${protocol}//${host}?roomCode=${roomCode}`);
 
     state.socket.onopen = () => {
       console.log(`WebSocket conectado à sala ${roomCode}`);
-      // Não precisamos renderizar aqui, a primeira mensagem do servidor fará isso.
     };
 
     state.socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
       console.log("Mensagem WS recebida:", data);
 
+      // --- LÓGICA DE TRATAMENTO DE ERRO CORRIGIDA ---
       if (data.type === "ERROR") {
+        // Apenas mostra o alerta. NÃO fecha a sala nem leva para o lobby.
         alert(`Erro do servidor: ${data.payload.message}`);
-        state.socket?.close(); // Fecha a conexão em caso de erro fatal
-        return;
+        // Se o erro for "Sala não encontrada", aí sim podemos tomar uma ação drástica.
+        if (data.payload.message.includes("encontrada")) {
+          state.socket?.close(); // Aciona o onclose que limpa a UI
+        }
+        return; // Para a execução para não processar o resto.
       }
 
+      // Se não for um erro, atualiza o estado do jogo.
       if (data.payload.gameState) {
         state.currentRoom = data.payload.gameState;
-        render(); // A única fonte de verdade para renderizar a tela
+        render(); // Renderiza o novo estado.
       }
     };
 
@@ -240,11 +243,6 @@ document.addEventListener("DOMContentLoaded", () => {
       state.socket = null;
       state.currentRoom = null;
       render(); // Volta para a tela de lobby
-    };
-
-    state.socket.onerror = (error) => {
-      console.error("Erro no WebSocket:", error);
-      // O onclose será chamado em seguida, então não precisa de alert aqui.
     };
   }
 
