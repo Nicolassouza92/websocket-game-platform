@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plataforma de Jogos - Quatro em Linha</title>
+    <style>
+        body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; padding: 20px; background-color: #f0f2f5; color: #1c1e21; }
+        .container { max-width: 700px; margin: 2rem auto; background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        h1, h2, h3 { color: #1877f2; }
+        form { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
+        input { padding: 10px; border: 1px solid #dddfe2; border-radius: 6px; font-size: 16px; }
+        button { padding: 12px; border: none; background-color: #1877f2; color: white; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold; }
+        button:hover { background-color: #166fe5; }
+        #logoutBtn { background-color: #fa3e3e; }
+        #logoutBtn:hover { background-color: #e02828; }
+        .hidden { display: none !important; }
+        #roomList div { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee; }
+        #roomList button { font-size: 14px; padding: 6px 12px; }
+        #gameBoard { display: grid; grid-template-columns: repeat(10, 1fr); gap: 5px; background-color: #007bff; padding: 10px; border-radius: 10px; margin-top: 20px; }
+        .cell { width: 50px; height: 50px; background-color: #fff; border-radius: 50%; display: flex; justify-content: center; align-items: center; cursor: pointer; }
+        .piece { width: 80%; height: 80%; border-radius: 50%; }
+        .player1 { background-color: #ff4136; }
+        .player2 { background-color: #ffdc00; }
+        .player3 { background-color: #2ecc40; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Plataforma de Jogos</h1>
+
+        <!-- Seção de Autenticação (mostrada quando deslogado) -->
+        <div id="authSection">
+            <h2>Registro</h2>
+            <form id="registerForm">
+                <input type="text" name="username" placeholder="Usuário" required>
+                <input type="password" name="password" placeholder="Senha" required>
+                <button type="submit">Registrar</button>
+            </form>
+
+            <h2>Login</h2>
+            <form id="loginForm">
+                <input type="text" name="username" placeholder="Usuário" required>
+                <input type="password" name="password" placeholder="Senha" required>
+                <button type="submit">Login</button>
+            </form>
+        </div>
+
+        <!-- Seção Principal da Aplicação (mostrada quando logado) -->
+        <div id="appSection" class="hidden">
+            <div id="userInfo" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 id="welcomeMessage" style="margin: 0;"></h2>
+                <button id="logoutBtn">Logout</button>
+            </div>
+
+            <!-- Lobby: Criar ou entrar em uma sala -->
+            <div id="lobby">
+                <h3>Lobby</h3>
+                <button id="createRoomBtn">Criar Nova Sala</button>
+                <hr style="margin: 20px 0;">
+                <h4>Salas Disponíveis</h4>
+                <div id="roomList">Carregando...</div>
+                <button id="refreshRoomsBtn">Atualizar Lista</button>
+            </div>
+            
+            <!-- Jogo: Tabuleiro e informações da sala -->
+            <div id="game" class="hidden">
+                <h3>Sala de Jogo</h3>
+                <p><strong>Código da Sala:</strong> <span id="gameRoomCode"></span></p>
+                <p><strong>Jogadores:</strong> <span id="gamePlayers"></span></p>
+                <p><strong>Status:</strong> <span id="gameStatus"></span></p>
+                <div id="gameBoard"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- O script é carregado no final para garantir que o DOM já existe -->
+    <script src="app.js"></script>
+</body>
+</html>
