@@ -1,77 +1,112 @@
 document.addEventListener("DOMContentLoaded", () => {
   // --- Estado da Aplicação (a "memória" do frontend) ---
   const state = {
-    currentUser: null, // { userId, username }
-    currentRoom: null, // O estado completo da sala de jogo
-    availableRooms: [], // Lista de salas do lobby
-    socket: null, // A conexão WebSocket ativa
+    currentUser: null,
+    currentRoom: null,
+    availableRooms: [],
+    socket: null,
   };
 
   // --- Referências aos Elementos da UI ---
   const elements = {
-    authSection: document.getElementById("authSection"),
-    appSection: document.getElementById("appSection"),
-    welcomeMessage: document.getElementById("welcomeMessage"),
+    authContainer: document.getElementById("authContainer"),
+    mainAppContainer: document.getElementById("mainAppContainer"),
+    lobby: document.getElementById("lobby"),
+    gameScreen: document.getElementById("gameScreen"),
     registerForm: document.getElementById("registerForm"),
     loginForm: document.getElementById("loginForm"),
     logoutBtn: document.getElementById("logoutBtn"),
-    lobby: document.getElementById("lobby"),
+    welcomeMessage: document.getElementById("welcomeMessage"),
     createRoomBtn: document.getElementById("createRoomBtn"),
     refreshRoomsBtn: document.getElementById("refreshRoomsBtn"),
     roomList: document.getElementById("roomList"),
-    game: document.getElementById("game"),
-    gameRoomCode: document.getElementById("gameRoomCode"),
-    gamePlayers: document.getElementById("gamePlayers"),
-    gameStatus: document.getElementById("gameStatus"),
-    gameBoard: document.getElementById("gameBoard"),
+    gameInfo: document.getElementById("game-info"),
+    playerListContent: document.getElementById("player-list-content"),
+    gameBoard: document.getElementById("board"),
+    chatForm: document.getElementById("chat-form"),
+    chatInput: document.getElementById("chat-input"),
+    chatMessages: document.getElementById("chat-messages"),
   };
 
-  // --- Função Central de Renderização ---
+  // =============================================
+  // --- FUNÇÃO CENTRAL DE RENDERIZAÇÃO ---
+  // =============================================
   function render() {
     const { currentUser, currentRoom, availableRooms } = state;
     const isLoggedIn = !!currentUser;
 
-    elements.authSection.classList.toggle("hidden", isLoggedIn);
-    elements.appSection.classList.toggle("hidden", !isLoggedIn);
+    elements.authContainer.classList.toggle("hidden", isLoggedIn);
+    elements.mainAppContainer.classList.toggle("hidden", !isLoggedIn);
 
     if (isLoggedIn) {
       elements.welcomeMessage.textContent = `Bem-vindo, ${currentUser.username}!`;
       const isInGame = !!currentRoom;
       elements.lobby.classList.toggle("hidden", isInGame);
-      elements.game.classList.toggle("hidden", !isInGame);
+      elements.gameScreen.classList.toggle("hidden", !isInGame);
 
       if (isInGame) {
-        elements.gameRoomCode.textContent = currentRoom.roomCode;
-        elements.gamePlayers.textContent = currentRoom.players
-          .map((p) => p.username)
-          .join(", ");
-        elements.gameStatus.textContent = currentRoom.status;
+        renderGameInfo(currentRoom);
+        renderPlayerList(currentRoom.players);
         renderBoard(currentRoom.board);
       } else {
-        elements.roomList.innerHTML = "";
-        if (availableRooms.length === 0) {
-          elements.roomList.innerHTML =
-            "<p>Nenhuma sala disponível. Crie uma!</p>";
-        } else {
-          availableRooms.forEach((room) => {
-            const roomEl = document.createElement("div");
-            roomEl.style.cssText =
-              "display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;";
-            roomEl.innerHTML = `<span>Sala: ${room.roomCode} - Jogadores: ${room.players.length}/3 (${room.status})</span>`;
-            const joinBtn = document.createElement("button");
-            joinBtn.textContent = "Entrar";
-            joinBtn.onclick = () => connectToGame(room.roomCode);
-            roomEl.appendChild(joinBtn);
-            elements.roomList.appendChild(roomEl);
-          });
-        }
+        renderRoomList(availableRooms);
       }
     }
   }
 
+  // =============================================
+  // --- FUNÇÕES AUXILIARES DE RENDERIZAÇÃO ---
+  // =============================================
+
+  function renderRoomList(rooms) {
+    elements.roomList.innerHTML = "";
+    if (rooms.length === 0) {
+      elements.roomList.innerHTML = "<p>Nenhuma sala disponível. Crie uma!</p>";
+    } else {
+      rooms.forEach((room) => {
+        const roomEl = document.createElement("div");
+        roomEl.innerHTML = `<span>Sala: <b>${room.roomCode}</b> - Jogadores: ${room.players.length}/3 (${room.status})</span>`;
+        const joinBtn = document.createElement("button");
+        joinBtn.textContent = "Entrar";
+        joinBtn.onclick = () => connectToGame(room.roomCode);
+        roomEl.appendChild(joinBtn);
+        elements.roomList.appendChild(roomEl);
+      });
+    }
+  }
+
+  function renderGameInfo(roomState) {
+    if (!elements.gameInfo) return;
+    if (roomState.status === "waiting") {
+      elements.gameInfo.textContent = `Aguardando jogadores... (${roomState.players.length}/3)`;
+    } else if (roomState.status === "playing") {
+      const currentPlayer = roomState.players[roomState.currentPlayerIndex];
+      if (state.currentUser && currentPlayer.id === state.currentUser.userId) {
+        elements.gameInfo.textContent = "É a sua vez!";
+      } else {
+        elements.gameInfo.textContent = `Aguardando a jogada de ${currentPlayer.username}...`;
+      }
+    } else if (roomState.status === "finished") {
+      const winner = roomState.players.find((p) => p.id === roomState.winner);
+      elements.gameInfo.textContent = winner
+        ? `O vencedor é ${winner.username}!`
+        : "O jogo empatou!";
+    }
+  }
+
+  function renderPlayerList(players) {
+    if (!elements.playerListContent) return;
+    elements.playerListContent.innerHTML = "";
+    players.forEach((player) => {
+      const playerEl = document.createElement("div");
+      playerEl.textContent = player.username;
+      elements.playerListContent.appendChild(playerEl);
+    });
+  }
+
   function renderBoard(board) {
+    if (!elements.gameBoard || !board || !board[0]) return;
     elements.gameBoard.innerHTML = "";
-    if (!board || !board[0]) return;
     elements.gameBoard.style.gridTemplateColumns = `repeat(${board[0].length}, 1fr)`;
     board.forEach((row, r) => {
       row.forEach((cellValue, c) => {
@@ -88,6 +123,21 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     });
   }
+
+  function displayChatMessage(username, text) {
+    const messageElement = document.createElement("p");
+    if (username === state.currentUser.username) {
+      messageElement.innerHTML = `<strong>Você:</strong> ${text}`;
+      messageElement.style.color = "var(--accent-color)";
+    } else {
+      messageElement.innerHTML = `<strong>${username}:</strong> ${text}`;
+    }
+    elements.chatMessages.prepend(messageElement); // prepend para novas mensagens no topo
+  }
+
+  // =============================================
+  // --- LÓGICA DE API E EVENTOS ---
+  // =============================================
 
   async function apiRequest(endpoint, method = "GET", body = null) {
     try {
@@ -110,30 +160,20 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // --- Lógica de Autenticação ---
   async function handleLoginSuccess(userData) {
     state.currentUser = userData.user || {
       userId: userData.userId,
       username: userData.username,
     };
-    try {
-      const rooms = await apiRequest("/rooms");
-      state.availableRooms = rooms;
-    } catch (error) {
-      console.error("Não foi possível buscar as salas após o login.", error);
-      state.availableRooms = [];
-    }
-    render();
+    await fetchRooms();
   }
 
   elements.registerForm.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const username = e.target.username.value;
-    const password = e.target.password.value;
     try {
       const data = await apiRequest("/auth/register", "POST", {
-        username,
-        password,
+        username: e.target.username.value,
+        password: e.target.password.value,
       });
       await handleLoginSuccess(data);
     } catch (error) {
@@ -143,12 +183,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   elements.loginForm.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const username = e.target.username.value;
-    const password = e.target.password.value;
     try {
       const data = await apiRequest("/auth/login", "POST", {
-        username,
-        password,
+        username: e.target.username.value,
+        password: e.target.password.value,
       });
       await handleLoginSuccess(data);
     } catch (error) {
@@ -164,11 +202,10 @@ document.addEventListener("DOMContentLoaded", () => {
       state.currentRoom = null;
       render();
     } catch (error) {
-      /* Silencioso no logout */
+      /* Silencioso */
     }
   });
 
-  // --- Lógica do Jogo ---
   elements.createRoomBtn.addEventListener("click", async () => {
     try {
       const data = await apiRequest("/rooms", "POST");
@@ -178,75 +215,96 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  elements.refreshRoomsBtn.addEventListener("click", fetchRooms);
-
   async function fetchRooms() {
     try {
       const rooms = await apiRequest("/rooms");
       state.availableRooms = rooms;
       render();
     } catch (error) {
-      // Se falhar (ex: token expirou), a lógica de inicialização vai lidar com o deslogue.
+      /* Silencioso se não estiver autenticado */
+    }
+  }
+  elements.refreshRoomsBtn.addEventListener("click", fetchRooms);
+
+  function handleColumnClick(column) {
+    if (state.socket && state.currentRoom?.status === "playing") {
+      const myTurn =
+        state.currentRoom.players[state.currentRoom.currentPlayerIndex].id ===
+        state.currentUser.userId;
+      if (myTurn) {
+        state.socket.send(
+          JSON.stringify({ type: "MAKE_MOVE", payload: { column } })
+        );
+      } else {
+        alert("Aguarde o seu turno para jogar!");
+      }
     }
   }
 
-  function handleColumnClick(column) {
-    if (
-      state.socket &&
-      state.currentRoom &&
-      state.currentRoom.status === "playing"
-    ) {
-      state.socket.send(
-        JSON.stringify({ type: "MAKE_MOVE", payload: { column } })
-      );
-    }
+  if (elements.chatForm) {
+    elements.chatForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const messageText = elements.chatInput.value.trim();
+      if (messageText && state.socket) {
+        state.socket.send(
+          JSON.stringify({
+            type: "SEND_CHAT_MESSAGE",
+            payload: { text: messageText },
+          })
+        );
+        elements.chatInput.value = "";
+      }
+    });
   }
 
   function connectToGame(roomCode) {
-    if (state.socket) {
-      state.socket.close();
-    }
+    if (state.socket) state.socket.close();
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const host = window.location.host;
     state.socket = new WebSocket(`${protocol}//${host}?roomCode=${roomCode}`);
 
-    state.socket.onopen = () => {
-      console.log(`WebSocket conectado à sala ${roomCode}`);
-    };
-
     state.socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      console.log("Mensagem WS recebida:", data);
+      const { type, payload } = data;
 
-      // --- LÓGICA DE TRATAMENTO DE ERRO CORRIGIDA ---
-      if (data.type === "ERROR") {
-        // Apenas mostra o alerta. NÃO fecha a sala nem leva para o lobby.
-        alert(`Erro do servidor: ${data.payload.message}`);
-        // Se o erro for "Sala não encontrada", aí sim podemos tomar uma ação drástica.
-        if (data.payload.message.includes("encontrada")) {
-          state.socket?.close(); // Aciona o onclose que limpa a UI
-        }
-        return; // Para a execução para não processar o resto.
-      }
-
-      // Se não for um erro, atualiza o estado do jogo.
-      if (data.payload.gameState) {
-        state.currentRoom = data.payload.gameState;
-        render(); // Renderiza o novo estado.
+      switch (type) {
+        case "ERROR":
+          alert(`Erro do servidor: ${payload.message}`);
+          if (
+            payload.message.includes("encontrada") ||
+            payload.message.includes("cheia")
+          ) {
+            state.socket?.close();
+          }
+          break;
+        case "GAME_START":
+        case "PLAYER_JOINED":
+        case "PLAYER_LEFT":
+        case "GAME_STATE_UPDATE":
+          state.currentRoom = payload.gameState;
+          render();
+          break;
+        case "NEW_MESSAGE":
+          displayChatMessage(payload.username, payload.text);
+          break;
+        case "ROOM_CLOSED":
+          alert(payload.message);
+          state.socket?.close();
+          break;
+        default:
+          console.warn(`Tipo de mensagem não tratada: ${type}`);
       }
     };
 
     state.socket.onclose = () => {
-      console.log("Desconectado da sala.");
       alert("A conexão com a sala foi fechada.");
       state.socket = null;
       state.currentRoom = null;
-      render(); // Volta para a tela de lobby
+      render();
     };
   }
 
-  // --- Verificação Inicial ---
   async function initializeApp() {
     try {
       const data = await apiRequest("/auth/status");
@@ -254,11 +312,8 @@ document.addEventListener("DOMContentLoaded", () => {
         await handleLoginSuccess({ user: data.user });
       }
     } catch (error) {
-      // Se a requisição de status falhar (ex: 401), o estado de usuário
-      // permanece nulo, o que é o comportamento correto.
       state.currentUser = null;
     } finally {
-      // Sempre renderiza a UI no final, com o estado que foi determinado.
       render();
     }
   }
