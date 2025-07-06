@@ -99,40 +99,90 @@ document.addEventListener("DOMContentLoaded", () => {
     elements.playerListContent.innerHTML = "";
     players.forEach((player) => {
       const playerEl = document.createElement("div");
-      playerEl.textContent = player.username;
+      playerEl.textContent = player.username; // Futuramente, pode incluir o placar aqui
       elements.playerListContent.appendChild(playerEl);
     });
   }
 
   function renderBoard(board) {
     if (!elements.gameBoard || !board || !board[0]) return;
+
+    const oldPieces = new Map();
+    // 1. Guarda a posição das peças que já existem no DOM
+    elements.gameBoard.querySelectorAll(".piece").forEach((p) => {
+      const cell = p.parentElement;
+      const key = `${cell.dataset.row}-${cell.dataset.column}`;
+      oldPieces.set(key, true);
+    });
+
     elements.gameBoard.innerHTML = "";
     elements.gameBoard.style.gridTemplateColumns = `repeat(${board[0].length}, 1fr)`;
+
     board.forEach((row, r) => {
       row.forEach((cellValue, c) => {
         const cell = document.createElement("div");
         cell.classList.add("cell");
+        cell.dataset.row = r.toString();
         cell.dataset.column = c.toString();
+        cell.addEventListener("click", () => handleColumnClick(c));
+
         if (cellValue !== null) {
           const piece = document.createElement("div");
-          piece.classList.add("piece", `player${cellValue}`);
+          piece.classList.add("piece");
+
+          const playerIndex = state.currentRoom.players.findIndex(
+            (p) => p.id === cellValue
+          );
+          if (playerIndex !== -1) {
+            piece.classList.add(`player${playerIndex + 1}`);
+          }
+
+          // 2. Anima a peça APENAS se ela não existia antes
+          const key = `${r}-${c}`;
+          if (!oldPieces.has(key)) {
+            piece.classList.add("piece-dropped");
+          }
+
           cell.appendChild(piece);
         }
-        cell.addEventListener("click", () => handleColumnClick(c));
         elements.gameBoard.appendChild(cell);
       });
     });
   }
 
   function displayChatMessage(username, text) {
-    const messageElement = document.createElement("p");
-    if (username === state.currentUser.username) {
-      messageElement.innerHTML = `<strong>Você:</strong> ${text}`;
-      messageElement.style.color = "var(--accent-color)";
+    if (!elements.chatMessages) return;
+
+    // 1. Cria o elemento principal que alinha o balão (esquerda/direita)
+    const messageWrapper = document.createElement("div");
+    messageWrapper.classList.add("chat-message-wrapper");
+
+    // 2. Cria o balão de chat
+    const messageBubble = document.createElement("div");
+    messageBubble.classList.add("message-bubble");
+
+    // 3. Verifica se a mensagem é do usuário atual ou de outro
+    if (state.currentUser && username === state.currentUser.username) {
+      // É a minha mensagem
+      messageWrapper.classList.add("my-message");
+      // Minhas mensagens não precisam do nome do autor
+      messageBubble.innerHTML = `<p class="message-content">${text}</p>`;
     } else {
-      messageElement.innerHTML = `<strong>${username}:</strong> ${text}`;
+      // É a mensagem de outra pessoa
+      messageWrapper.classList.add("other-message");
+      // Adiciona o nome do autor e a mensagem
+      messageBubble.innerHTML = `
+            <span class="message-author">${username}</span>
+            <p class="message-content">${text}</p>
+        `;
     }
-    elements.chatMessages.prepend(messageElement); // prepend para novas mensagens no topo
+
+    // 4. Monta a estrutura e adiciona à tela
+    messageWrapper.appendChild(messageBubble);
+    elements.chatMessages.appendChild(messageWrapper); // Adiciona no final para o scroll funcionar corretamente
+
+    // 5. Rola para a mensagem mais recente
+    elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
   }
 
   // =============================================

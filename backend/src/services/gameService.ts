@@ -14,12 +14,10 @@ const clientToRoomMap = new Map<
 export function createRoom(creator: Player): GameState {
   const roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
 
-  // O estado da sala começa como 'waiting'. O tabuleiro e outros campos
-  // serão totalmente inicializados quando o jogo começar.
   const initialState: GameState = {
     roomCode,
     host: creator,
-    players: [], // Começa vazio, o host será adicionado em handlePlayerConnection
+    players: [], // O criador será adicionado em handlePlayerConnection
     board: Array(9)
       .fill(null)
       .map(() => Array(10).fill(null)),
@@ -34,7 +32,7 @@ export function createRoom(creator: Player): GameState {
 }
 
 /**
- * Retorna uma lista de salas disponíveis.
+ * Retorna uma lista de salas disponíveis para entrar.
  */
 export function getAvailableRooms(): Pick<
   GameState,
@@ -46,7 +44,7 @@ export function getAvailableRooms(): Pick<
 }
 
 /**
- * Lida com a entrada de um novo jogador em uma sala via WebSocket.
+ * Lida com uma nova conexão de um jogador a uma sala específica.
  */
 export function handlePlayerConnection(
   ws: WebSocket,
@@ -66,7 +64,6 @@ export function handlePlayerConnection(
     return;
   }
   if (room.players.some((p) => p.id === player.id)) {
-    // Lógica de reconexão poderia entrar aqui, mas por enquanto fechamos.
     ws.send(
       JSON.stringify({
         type: "ERROR",
@@ -96,22 +93,17 @@ export function handlePlayerConnection(
   if (room.players.length === 3) {
     console.log(`[GameService] Sala ${roomCode} cheia. Iniciando jogo.`);
     room.status = "playing";
-    // Opcional: ordenar jogadores se necessário (host primeiro)
     room.players.sort((a, b) =>
       a.id === room.host.id ? -1 : b.id === room.host.id ? 1 : 0
     );
-    // Reinicia o índice do jogador atual para garantir que o host comece
     room.currentPlayerIndex = room.players.findIndex(
       (p) => p.id === room.host.id
     );
-
-    // O estado está pronto, agora notificamos todos que o jogo começou
     broadcastToRoom(roomCode, {
       type: "GAME_START",
       payload: { gameState: room },
     });
   } else {
-    // Se o jogo ainda está esperando, apenas notifica sobre o novo jogador.
     broadcastToRoom(roomCode, {
       type: "PLAYER_JOINED",
       payload: { gameState: room },
@@ -121,8 +113,13 @@ export function handlePlayerConnection(
   ws.on("message", (message: string) => {
     try {
       const parsedMessage = JSON.parse(message);
-      if (parsedMessage.type === "MAKE_MOVE") {
-        handleMakeMove(ws, roomCode, player.id, parsedMessage.payload.column);
+      switch (parsedMessage.type) {
+        case "MAKE_MOVE":
+          handleMakeMove(ws, roomCode, player.id, parsedMessage.payload.column);
+          break;
+        case "SEND_CHAT_MESSAGE":
+          handleChatMessage(roomCode, player, parsedMessage.payload.text);
+          break;
       }
     } catch (error) {
       console.error(
@@ -137,6 +134,17 @@ export function handlePlayerConnection(
   });
 }
 
+function handleChatMessage(roomCode: string, sender: Player, text: string) {
+  const message = {
+    type: "NEW_MESSAGE",
+    payload: {
+      username: sender.username,
+      text: text,
+    },
+  };
+  broadcastToRoom(roomCode, message);
+}
+
 function handlePlayerDisconnection(ws: WebSocket) {
   const connectionInfo = clientToRoomMap.get(ws);
   if (!connectionInfo) return;
@@ -147,8 +155,6 @@ function handlePlayerDisconnection(ws: WebSocket) {
 
   const disconnectedPlayer = room.players.find((p) => p.id === playerId);
   clientToRoomMap.delete(ws);
-
-  // Remove o jogador da lista
   room.players = room.players.filter((p) => p.id !== playerId);
 
   console.log(
@@ -157,7 +163,6 @@ function handlePlayerDisconnection(ws: WebSocket) {
     } desconectou da sala ${roomCode}.`
   );
 
-  // Se a sala ficar com menos de 3 jogadores e estava jogando, ela é encerrada.
   if (room.players.length < 3 && room.status !== "waiting") {
     console.log(
       `[GameService] Número de jogadores insuficiente. Fechando a sala ${roomCode}.`
@@ -168,7 +173,6 @@ function handlePlayerDisconnection(ws: WebSocket) {
         message: `A sala foi fechada porque ${disconnectedPlayer?.username} saiu.`,
       },
     });
-    // Fecha as conexões restantes e remove a sala.
     room.players.forEach((p) => {
       const playerWs = Array.from(clientToRoomMap.keys()).find(
         (key) => clientToRoomMap.get(key)?.playerId === p.id
@@ -177,17 +181,13 @@ function handlePlayerDisconnection(ws: WebSocket) {
     });
     rooms.delete(roomCode);
   } else {
-    // Se a sala ainda pode continuar (ou estava em 'waiting'), apenas notifica
     broadcastToRoom(roomCode, {
       type: "PLAYER_LEFT",
-      payload: { gameState: room, disconnectedPlayerId: playerId }, // Envia o ID de quem saiu
+      payload: { gameState: room, disconnectedPlayerId: playerId },
     });
   }
 }
 
-/**
- * Processa a jogada de um jogador.
- */
 function handleMakeMove(
   ws: WebSocket,
   roomCode: string,
@@ -198,17 +198,13 @@ function handleMakeMove(
   if (!room) return;
 
   try {
-    // A lógica pura do jogo valida o turno, a jogada, etc.
     const newState = makeMove(room, playerId, column);
-    rooms.set(roomCode, newState); // Atualiza o estado da sala
-
-    // Notifica todos na sala sobre o novo estado do jogo.
+    rooms.set(roomCode, newState);
     broadcastToRoom(roomCode, {
       type: "GAME_STATE_UPDATE",
       payload: { gameState: newState },
     });
   } catch (error: any) {
-    // **CORREÇÃO IMPORTANTE**: Notifica o jogador sobre a jogada inválida.
     console.error(
       `[GameService] Jogada inválida na sala ${roomCode} pelo jogador ${playerId}: ${error.message}`
     );
@@ -218,9 +214,6 @@ function handleMakeMove(
   }
 }
 
-/**
- * Envia uma mensagem para todos os jogadores em uma sala específica.
- */
 function broadcastToRoom(roomCode: string, message: object) {
   const messageString = JSON.stringify(message);
   for (const [client, info] of clientToRoomMap.entries()) {
