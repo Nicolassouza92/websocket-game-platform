@@ -300,9 +300,10 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   elements.leaveRoomBtn.addEventListener("click", () => {
-    if (state.socket) {
-      console.log("Saindo da sala...");
-      state.socket.close(); // Apenas fechar o socket é o suficiente
+    // MODIFICAÇÃO: Envia uma mensagem explícita ao servidor para sair da sala
+    if (state.socket && state.socket.readyState === WebSocket.OPEN) {
+      console.log("Enviando pedido para sair da sala...");
+      state.socket.send(JSON.stringify({ type: "LEAVE_ROOM" }));
     }
   });
 
@@ -390,14 +391,22 @@ document.addEventListener("DOMContentLoaded", () => {
         case "PLAYER_RECONNECTED":
         case "PLAYER_STATUS_UPDATE":
           state.currentRoom = payload.gameState;
+          // NOVO: Mostra snackbar se voltar para waiting e não estiver cheia
+          if (payload.gameState.status === 'waiting' && state.currentRoom.players.length < 3) {
+            showSnackbar("Aguardando mais jogadores para continuar.", "info");
+          }
           render();
           break;
         case "NEW_MESSAGE":
           displayChatMessage(payload.username, payload.text);
           break;
         case "ROOM_CLOSED":
-          payload.message;
-          state.socket?.close(); // Aciona o onclose, que limpa o estado e renderiza o lobby
+          // NOVO: Exibe a mensagem do servidor antes de fechar.
+          showSnackbar(payload.message, "error", 5000);
+          // O servidor forçará o fechamento da conexão, o que acionará o onclose.
+          break;
+        case "INFO_MESSAGE":
+          showSnackbar(payload.message, "info", 5000);
           break;
         default:
           console.warn(`Tipo de mensagem não tratada: ${type}`);
@@ -406,12 +415,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
     state.socket.onclose = () => {
       console.log("A conexão com a sala foi fechada.");
-      showSnackbar("A conexão com a sala foi fechada.");
+      showSnackbar("Retornando ao lobby.");
       state.socket = null;
       state.currentRoom = null;
-      sessionStorage.removeItem("currentRoomCode"); // Limpa a memória
-      render(); // Volta para a tela de lobby
-      fetchRooms(); // **ATUALIZA A LISTA DE SALAS PARA TODOS**
+      sessionStorage.removeItem("currentRoomCode");
+      render();
+      fetchRooms();
     };
   }
 

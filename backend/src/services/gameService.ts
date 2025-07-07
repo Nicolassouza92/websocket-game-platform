@@ -160,8 +160,16 @@ function attachMessageHandlers(
   ws.on("message", (message: string) => {
     try {
       const parsedMessage = JSON.parse(message);
-      if (parsedMessage.type === "MAKE_MOVE") {
-        handleMakeMove(ws, roomCode, player.id, parsedMessage.payload.column);
+      // ROTEAMENTO DE MENSAGENS
+      switch(parsedMessage.type) {
+        case "MAKE_MOVE":
+          handleMakeMove(ws, roomCode, player.id, parsedMessage.payload.column);
+          break;
+        case "LEAVE_ROOM": // NOVA ROTA
+          handlePlayerLeave(ws, roomCode, player.id);
+          break;
+        default:
+          console.warn(`[GameService] Tipo de mensagem desconhecido: ${parsedMessage.type}`);
       }
     } catch (error) {
       console.error("[GameService] Erro ao processar mensagem:", error);
@@ -172,8 +180,74 @@ function attachMessageHandlers(
   });
 }
 
+/**
+ * Lida com a saída *deliberada* de um jogador.
+ * A conexão dele será encerrada no final.
+ */
+function handlePlayerLeave(ws: WebSocket, roomCode: string, playerId: PlayerId) {
+  const room = rooms.get(roomCode);
+  if (!room) return;
+
+  const leavingPlayer = room.players.get(playerId);
+  if (!leavingPlayer) return;
+
+  console.log(`[GameService] Jogador ${leavingPlayer.username} saiu deliberadamente da sala ${roomCode}.`);
+
+  // REGRA 1: O HOST SAIU DURANTE O JOGO.
+  if (playerId === room.hostId && room.status !== 'waiting') {
+    console.log(`[GameService] Host saiu. Fechando a sala ${roomCode}.`);
+    broadcastToRoom(roomCode, {
+      type: "ROOM_CLOSED",
+      payload: { message: `O host (${leavingPlayer.username}) encerrou a sala.` },
+    });
+    room.players.forEach(p => p.ws?.close());
+    clearTurnTimer(roomCode);
+    rooms.delete(roomCode);
+    return;
+  }
+
+  // Se não era o host ou o jogo não começou, remove o jogador.
+  room.players.delete(playerId);
+  room.playerOrder = room.playerOrder.filter((id) => id !== playerId);
+  clientToRoomMap.delete(ws);
+
+  // REGRA 2: RESTARAM 2 JOGADORES. O JOGO CONTINUA.
+  if (room.status === 'playing' && room.players.size === 2) {
+    console.log(`[GameService] Restam 2 jogadores na sala ${roomCode}. O jogo continua.`);
+    room.currentPlayerIndex %= room.playerOrder.length;
+    broadcastToRoom(roomCode, {
+      type: "INFO_MESSAGE",
+      payload: { message: `${leavingPlayer.username} saiu. O jogo continua entre os 2 restantes.` }
+    });
+    startTurnTimer(room);
+    broadcastRoomState(room);
+
+  // REGRA 3: RESTOU APENAS 1 JOGADOR. A SALA REINICIA.
+  } else if (room.status === 'playing' && room.players.size < 2) {
+    console.log(`[GameService] Apenas 1 jogador restou. Sala ${roomCode} voltando para o estado de espera.`);
+    room.status = 'waiting';
+    const newHost = Array.from(room.players.values())[0];
+    room.hostId = newHost.id;
+    room.board = Array(9).fill(null).map(() => Array(10).fill(null));
+    room.currentPlayerIndex = 0;
+    delete room.winner;
+    delete room.turnEndsAt;
+    clearTurnTimer(roomCode);
+    broadcastRoomState(room);
+
+  // CASO PADRÃO (ex: jogador sai enquanto estava em 'waiting')
+  } else {
+    broadcastRoomState(room);
+  }
+
+  ws.close();
+}
+
+/**
+ * Lida com uma desconexão *inesperada* de um jogador.
+ * Inicia um timer para reconexão.
+ */
 function handlePlayerDisconnection(ws: WebSocket) {
-  // ... (lógica existente)
   const connectionInfo = clientToRoomMap.get(ws);
   if (!connectionInfo) return;
   const { roomCode, playerId } = connectionInfo;
@@ -181,11 +255,16 @@ function handlePlayerDisconnection(ws: WebSocket) {
   if (!room) return;
   const disconnectedPlayer = room.players.get(playerId);
   if (!disconnectedPlayer) return;
+
+  // Se o jogador já foi removido por 'handlePlayerLeave', não faz nada.
+  if (!room.players.has(playerId)) return;
+
   console.log(
     `[GameService] Jogador ${disconnectedPlayer.username} desconectou. Iniciando timer de remoção.`
   );
   disconnectedPlayer.ws = null;
   clientToRoomMap.delete(ws);
+
   broadcastRoomState(room);
 
   const timeout = setTimeout(() => {
@@ -197,26 +276,11 @@ function handlePlayerDisconnection(ws: WebSocket) {
       console.log(
         `[GameService] Tempo de reconexão para ${playerToRemove.username} esgotou. Removendo-o.`
       );
-      currentRoom.players.delete(playerId);
-      currentRoom.playerOrder = currentRoom.playerOrder.filter(
-        (id) => id !== playerId
-      );
-      reconnectionTimers.delete(playerId);
-      if (currentRoom.players.size < 3 && currentRoom.status !== "waiting") {
-        broadcastToRoom(roomCode, {
-          type: "ROOM_CLOSED",
-          payload: {
-            message: `A sala foi fechada porque ${playerToRemove.username} não se reconectou a tempo.`,
-          },
-        });
-        currentRoom.players.forEach((p) => p.ws?.close());
-        clearTurnTimer(roomCode); // LIMPA O CRONÔMETRO SE A SALA FOR FECHADA
-        rooms.delete(roomCode);
-      } else {
-        broadcastRoomState(currentRoom);
-      }
+      // Trata como saída deliberada
+      handlePlayerLeave(ws, roomCode, playerId);
     }
   }, RECONNECTION_TIMEOUT_MS);
+
   reconnectionTimers.set(playerId, timeout);
 }
 
