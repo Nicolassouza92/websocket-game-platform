@@ -26,6 +26,7 @@ document.addEventListener("DOMContentLoaded", () => {
     chatForm: document.getElementById("chat-form"),
     chatInput: document.getElementById("chat-input"),
     chatMessages: document.getElementById("chat-messages"),
+    leaveRoomBtn: document.getElementById("leaveRoomBtn"),
   };
 
   // =============================================
@@ -43,6 +44,8 @@ document.addEventListener("DOMContentLoaded", () => {
       const isInGame = !!currentRoom;
       elements.lobby.classList.toggle("hidden", isInGame);
       elements.gameScreen.classList.toggle("hidden", !isInGame);
+
+      elements.leaveRoomBtn.classList.toggle("hidden", !isInGame);
 
       if (isInGame) {
         renderGameInfo(currentRoom);
@@ -217,7 +220,7 @@ document.addEventListener("DOMContentLoaded", () => {
       });
       await handleLoginSuccess(data);
     } catch (error) {
-      alert(`Erro no registro: ${error.message}`);
+      showSnackbar(`Erro no registro: ${error.message}`);
     }
   });
 
@@ -230,7 +233,7 @@ document.addEventListener("DOMContentLoaded", () => {
       });
       await handleLoginSuccess(data);
     } catch (error) {
-      alert(`Falha no login: ${error.message}`);
+      showSnackbar(`Falha no login: ${error.message}`);
     }
   });
 
@@ -248,12 +251,19 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  elements.leaveRoomBtn.addEventListener("click", () => {
+    if (state.socket) {
+      console.log("Saindo da sala...");
+      state.socket.close(); // Apenas fechar o socket é o suficiente
+    }
+  });
+
   elements.createRoomBtn.addEventListener("click", async () => {
     try {
       const data = await apiRequest("/rooms", "POST");
       connectToGame(data.roomCode);
     } catch (error) {
-      alert(`Não foi possível criar a sala: ${error.message}`);
+      showSnackbar(`Não foi possível criar a sala: ${error.message}`);
     }
   });
 
@@ -281,7 +291,7 @@ document.addEventListener("DOMContentLoaded", () => {
           JSON.stringify({ type: "MAKE_MOVE", payload: { column } })
         );
       } else {
-        alert("Aguarde o seu turno para jogar!");
+        showSnackbar("Aguarde o seu turno para jogar!");
       }
     }
   }
@@ -317,7 +327,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       switch (type) {
         case "ERROR":
-          alert(`Erro do servidor: ${payload.message}`);
+          showSnackbar(`Erro do servidor: ${payload.message}`);
           if (
             payload.message.includes("encontrada") ||
             payload.message.includes("cheia")
@@ -338,7 +348,7 @@ document.addEventListener("DOMContentLoaded", () => {
           displayChatMessage(payload.username, payload.text);
           break;
         case "ROOM_CLOSED":
-          alert(payload.message);
+          payload.message;
           state.socket?.close(); // Aciona o onclose, que limpa o estado e renderiza o lobby
           break;
         default:
@@ -348,13 +358,52 @@ document.addEventListener("DOMContentLoaded", () => {
 
     state.socket.onclose = () => {
       console.log("A conexão com a sala foi fechada.");
-      alert("A conexão com a sala foi fechada.");
+      showSnackbar("A conexão com a sala foi fechada.");
       state.socket = null;
       state.currentRoom = null;
       sessionStorage.removeItem("currentRoomCode"); // Limpa a memória
       render(); // Volta para a tela de lobby
       fetchRooms(); // **ATUALIZA A LISTA DE SALAS PARA TODOS**
     };
+  }
+
+  function showSnackbar(message, type = "info", duration = 4000) {
+    const container = document.getElementById("snackbar-container");
+    if (!container) return;
+
+    // --- LÓGICA ANTI-ACÚMULO ---
+    // 1. Procura por qualquer snackbar que já esteja na tela.
+    const existingSnackbar = container.querySelector(".snackbar");
+    // 2. Se encontrar um, remove-o imediatamente.
+    if (existingSnackbar) {
+      existingSnackbar.remove();
+    }
+    // ----------------------------
+
+    // 3. Cria o novo snackbar (lógica que você já tem).
+    const snackbar = document.createElement("div");
+    snackbar.className = `snackbar ${type}`;
+    snackbar.textContent = message;
+
+    container.appendChild(snackbar);
+
+    // Animação de entrada
+    // Para garantir que a animação CSS execute, forçamos um "reflow"
+    requestAnimationFrame(() => {
+      snackbar.classList.add("show");
+    });
+
+    // 4. Configura um timer para remover o novo snackbar.
+    setTimeout(() => {
+      // Adiciona a classe para a animação de saída
+      snackbar.classList.remove("show");
+      snackbar.classList.add("hiding");
+
+      // Remove o elemento do DOM após a animação de saída terminar
+      snackbar.addEventListener("animationend", () => {
+        snackbar.remove();
+      });
+    }, duration);
   }
 
   async function initializeApp() {
