@@ -1,4 +1,4 @@
-import { GameState, Board, PlayerId, Player } from "./state";
+import { GameState, Board, PlayerId, Player, PlayerState } from "./state"; // Atualize as importações
 
 const ROWS = 9;
 const COLS = 10;
@@ -14,9 +14,12 @@ export function makeMove(
   if (currentState.status !== "playing") {
     throw new Error("O jogo não está em andamento.");
   }
-
-  const currentPlayer = currentState.players[currentState.currentPlayerIndex];
-  if (currentPlayer.id !== playerId) {
+  
+  // --- LÓGICA DE TURNO CORRIGIDA ---
+  // 1. Pega o ID do jogador atual usando o playerOrder e o currentPlayerIndex
+  const currentPlayerId = currentState.playerOrder[currentState.currentPlayerIndex];
+  // 2. Compara com o ID de quem está tentando jogar
+  if (currentPlayerId !== playerId) {
     throw new Error("Não é o seu turno.");
   }
 
@@ -40,8 +43,10 @@ export function makeMove(
   newBoard[rowPlaced][column] = playerId;
 
   const winner = checkWin(newBoard, playerId) ? playerId : null;
+  
+  // A ordem dos jogadores é mantida, apenas o índice do turno avança
   const nextPlayerIndex =
-    (currentState.currentPlayerIndex + 1) % currentState.players.length;
+    (currentState.currentPlayerIndex + 1) % currentState.playerOrder.length;
 
   return {
     ...currentState,
@@ -56,20 +61,17 @@ export function makeMove(
  * Verifica se um jogador venceu.
  */
 export function checkWin(board: Board, playerId: PlayerId): boolean {
-  const ROWS = 9;
-  const COLS = 10;
-
-  // Horizontal (precisa de 3 em linha)
+  // A lógica de verificação de vitória (horizontal, vertical, diagonais)
+  // que você já tem permanece exatamente a mesma aqui.
+  
+  // Horizontal
   for (let r = 0; r < ROWS; r++) {
-    // O loop vai até a antepenúltima coluna
-    for (let c = 0; c <= COLS - 3; c++) { 
+    for (let c = 0; c <= COLS - 3; c++) {
       if (
         board[r][c] === playerId &&
         board[r][c + 1] === playerId &&
         board[r][c + 2] === playerId
-      ) {
-        return true;
-      }
+      ) return true;
     }
   }
 
@@ -80,9 +82,7 @@ export function checkWin(board: Board, playerId: PlayerId): boolean {
         board[r][c] === playerId &&
         board[r + 1][c] === playerId &&
         board[r + 2][c] === playerId
-      ) {
-        return true;
-      }
+      ) return true;
     }
   }
 
@@ -93,23 +93,18 @@ export function checkWin(board: Board, playerId: PlayerId): boolean {
         board[r][c] === playerId &&
         board[r + 1][c + 1] === playerId &&
         board[r + 2][c + 2] === playerId
-      ) {
-        return true;
-      }
+      ) return true;
     }
   }
 
   // Diagonal (ascendente)
-  for (let r = 3; r < ROWS; r++) {
+  for (let r = 2; r < ROWS; r++) {
     for (let c = 0; c <= COLS - 3; c++) {
-      // Começamos da linha 2 (índice 2) para a verificação ascendente
-      if (r >= 2 &&
+      if (
         board[r][c] === playerId &&
         board[r - 1][c + 1] === playerId &&
         board[r - 2][c + 2] === playerId
-      ) {
-        return true;
-      }
+      ) return true;
     }
   }
 

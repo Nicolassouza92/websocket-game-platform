@@ -60,7 +60,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function renderRoomList(rooms) {
     elements.roomList.innerHTML = "";
-    if (rooms.length === 0) {
+    if (!rooms || rooms.length === 0) {
       elements.roomList.innerHTML = "<p>Nenhuma sala disponível. Crie uma!</p>";
     } else {
       rooms.forEach((room) => {
@@ -81,9 +81,13 @@ document.addEventListener("DOMContentLoaded", () => {
       elements.gameInfo.textContent = `Aguardando jogadores... (${roomState.players.length}/3)`;
     } else if (roomState.status === "playing") {
       const currentPlayer = roomState.players[roomState.currentPlayerIndex];
-      if (state.currentUser && currentPlayer.id === state.currentUser.userId) {
+      if (
+        state.currentUser &&
+        currentPlayer &&
+        currentPlayer.id === state.currentUser.userId
+      ) {
         elements.gameInfo.textContent = "É a sua vez!";
-      } else {
+      } else if (currentPlayer) {
         elements.gameInfo.textContent = `Aguardando a jogada de ${currentPlayer.username}...`;
       }
     } else if (roomState.status === "finished") {
@@ -99,7 +103,9 @@ document.addEventListener("DOMContentLoaded", () => {
     elements.playerListContent.innerHTML = "";
     players.forEach((player) => {
       const playerEl = document.createElement("div");
-      playerEl.textContent = player.username; // Futuramente, pode incluir o placar aqui
+      // NOVO: Mostra o status online/offline
+      const statusIcon = player.isOnline ? "🟢" : "🔴";
+      playerEl.innerHTML = `${statusIcon} ${player.username}`;
       elements.playerListContent.appendChild(playerEl);
     });
   }
@@ -108,7 +114,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!elements.gameBoard || !board || !board[0]) return;
 
     const oldPieces = new Map();
-    // 1. Guarda a posição das peças que já existem no DOM
     elements.gameBoard.querySelectorAll(".piece").forEach((p) => {
       const cell = p.parentElement;
       const key = `${cell.dataset.row}-${cell.dataset.column}`;
@@ -137,7 +142,6 @@ document.addEventListener("DOMContentLoaded", () => {
             piece.classList.add(`player${playerIndex + 1}`);
           }
 
-          // 2. Anima a peça APENAS se ela não existia antes
           const key = `${r}-${c}`;
           if (!oldPieces.has(key)) {
             piece.classList.add("piece-dropped");
@@ -151,37 +155,23 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function displayChatMessage(username, text) {
-    if (!elements.chatMessages) return;
-
-    // 1. Cria o elemento principal que alinha o balão (esquerda/direita)
+    if (!elements.chatMessages || !state.currentUser) return;
     const messageWrapper = document.createElement("div");
     messageWrapper.classList.add("chat-message-wrapper");
 
-    // 2. Cria o balão de chat
     const messageBubble = document.createElement("div");
     messageBubble.classList.add("message-bubble");
 
-    // 3. Verifica se a mensagem é do usuário atual ou de outro
-    if (state.currentUser && username === state.currentUser.username) {
-      // É a minha mensagem
+    if (username === state.currentUser.username) {
       messageWrapper.classList.add("my-message");
-      // Minhas mensagens não precisam do nome do autor
       messageBubble.innerHTML = `<p class="message-content">${text}</p>`;
     } else {
-      // É a mensagem de outra pessoa
       messageWrapper.classList.add("other-message");
-      // Adiciona o nome do autor e a mensagem
-      messageBubble.innerHTML = `
-            <span class="message-author">${username}</span>
-            <p class="message-content">${text}</p>
-        `;
+      messageBubble.innerHTML = `<span class="message-author">${username}</span><p class="message-content">${text}</p>`;
     }
 
-    // 4. Monta a estrutura e adiciona à tela
     messageWrapper.appendChild(messageBubble);
-    elements.chatMessages.appendChild(messageWrapper); // Adiciona no final para o scroll funcionar corretamente
-
-    // 5. Rola para a mensagem mais recente
+    elements.chatMessages.appendChild(messageWrapper);
     elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
   }
 
@@ -250,6 +240,8 @@ document.addEventListener("DOMContentLoaded", () => {
       if (state.socket) state.socket.close();
       state.currentUser = null;
       state.currentRoom = null;
+      // *** LIMPA A MEMÓRIA DA SESSÃO NO LOGOUT ***
+      sessionStorage.removeItem("currentRoomCode");
       render();
     } catch (error) {
       /* Silencioso */
@@ -278,10 +270,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function handleColumnClick(column) {
     if (state.socket && state.currentRoom?.status === "playing") {
-      const myTurn =
-        state.currentRoom.players[state.currentRoom.currentPlayerIndex].id ===
-        state.currentUser.userId;
-      if (myTurn) {
+      const currentPlayer =
+        state.currentRoom.players[state.currentRoom.currentPlayerIndex];
+      if (
+        currentPlayer &&
+        state.currentUser &&
+        currentPlayer.id === state.currentUser.userId
+      ) {
         state.socket.send(
           JSON.stringify({ type: "MAKE_MOVE", payload: { column } })
         );
@@ -310,6 +305,8 @@ document.addEventListener("DOMContentLoaded", () => {
   function connectToGame(roomCode) {
     if (state.socket) state.socket.close();
 
+    sessionStorage.setItem("currentRoomCode", roomCode);
+
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const host = window.location.host;
     state.socket = new WebSocket(`${protocol}//${host}?roomCode=${roomCode}`);
@@ -332,6 +329,8 @@ document.addEventListener("DOMContentLoaded", () => {
         case "PLAYER_JOINED":
         case "PLAYER_LEFT":
         case "GAME_STATE_UPDATE":
+        case "PLAYER_RECONNECTED":
+        case "PLAYER_STATUS_UPDATE":
           state.currentRoom = payload.gameState;
           render();
           break;
@@ -340,7 +339,7 @@ document.addEventListener("DOMContentLoaded", () => {
           break;
         case "ROOM_CLOSED":
           alert(payload.message);
-          state.socket?.close();
+          state.socket?.close(); // Aciona o onclose, que limpa o estado e renderiza o lobby
           break;
         default:
           console.warn(`Tipo de mensagem não tratada: ${type}`);
@@ -348,10 +347,13 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     state.socket.onclose = () => {
+      console.log("A conexão com a sala foi fechada.");
       alert("A conexão com a sala foi fechada.");
       state.socket = null;
       state.currentRoom = null;
-      render();
+      sessionStorage.removeItem("currentRoomCode"); // Limpa a memória
+      render(); // Volta para a tela de lobby
+      fetchRooms(); // **ATUALIZA A LISTA DE SALAS PARA TODOS**
     };
   }
 
@@ -359,11 +361,26 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const data = await apiRequest("/auth/status");
       if (data.isAuthenticated) {
-        await handleLoginSuccess({ user: data.user });
+        state.currentUser = data.user;
+
+        // *** AQUI ESTÁ A LÓGICA DE RECONEXÃO ***
+        const lastRoomCode = sessionStorage.getItem("currentRoomCode");
+
+        if (lastRoomCode) {
+          // Se encontramos uma sala na memória, tentamos nos reconectar a ela.
+          console.log(`Tentando reconectar à sala anterior: ${lastRoomCode}`);
+          connectToGame(lastRoomCode);
+        } else {
+          // Se não, carregamos o lobby normalmente.
+          await fetchRooms();
+          render();
+        }
+      } else {
+        state.currentUser = null;
+        render();
       }
     } catch (error) {
       state.currentUser = null;
-    } finally {
       render();
     }
   }
