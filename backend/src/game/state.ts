@@ -1,21 +1,22 @@
 // backend/src/game/state.ts
-import { WebSocket } from "ws";
+import { WebSocket } from 'ws';
 
 export type PlayerId = number;
 export type Cell = PlayerId | null;
 export type Board = Cell[][];
 
 export interface Player {
-  id: PlayerId;
-  username: string;
+    id: PlayerId;
+    username: string;
 }
 
 export interface PlayerState extends Player {
   ws: WebSocket | null; // A conexão ativa ou null se estiver offline
+  inactiveTurns: number; // NOVO: Contador de turnos inativos (strikes)
 }
 
 export interface PlayerInfoForClient extends Player {
-  isOnline: boolean;
+    isOnline: boolean;
 }
 
 export interface GameState {
@@ -27,17 +28,17 @@ export interface GameState {
   board: Board;
   status: "waiting" | "playing" | "finished";
   winner?: PlayerId | null;
-  turnEndsAt?: number; // NOVO: Timestamp de quando o turno atual termina
+  turnEndsAt?: number;
 }
 
 export interface GameStateForClient {
-  roomCode: string;
-  hostId: PlayerId;
-  players: PlayerInfoForClient[];
-  board: Board;
-  playerOrder: PlayerId[];
-  currentPlayerIndex: number;
-  status: "waiting" | "playing" | "finished";
-  winner?: PlayerId | null;
-  turnEndsAt?: number; // NOVO: Timestamp de quando o turno atual termina
+    roomCode: string;
+    hostId: PlayerId;
+    players: PlayerInfoForClient[];
+    board: Board;
+    playerOrder: PlayerId[];
+    currentPlayerIndex: number;
+    status: "waiting" | "playing" | "finished";
+    winner?: PlayerId | null;
+    turnEndsAt?: number;
 }

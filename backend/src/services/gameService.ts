@@ -20,6 +20,7 @@ const RECONNECTION_TIMEOUT_MS = 60000; // 60 segundos
 // --- NOVAS CONSTANTES E MAPA PARA O CRONÔMETRO ---
 const turnTimers = new Map<string, NodeJS.Timeout>(); // Armazena os timers ativos por sala
 const TURN_DURATION_MS = 30000; // 30 segundos
+const MAX_INACTIVE_TURNS = 2; // NOVO: Limite de turnos inativos
 
 // --- Funções Principais Exportadas ---
 // ... (createRoom e getAvailableRooms permanecem iguais)
@@ -91,7 +92,8 @@ export function handlePlayerConnection(
     return;
   }
 
-  const newPlayerState: PlayerState = { ...player, ws };
+  // MODIFICADO: Inclui a inicialização de inactiveTurns
+  const newPlayerState: PlayerState = { ...player, ws, inactiveTurns: 0 };
   room.players.set(player.id, newPlayerState);
   if (room.playerOrder.indexOf(player.id) === -1) {
     room.playerOrder.push(player.id);
@@ -126,25 +128,45 @@ function clearTurnTimer(roomCode: string) {
 
 /** Inicia um novo cronômetro de turno para o jogador atual na sala. */
 function startTurnTimer(room: GameState) {
-  clearTurnTimer(room.roomCode); // Garante que não haja timers duplicados
-
+  clearTurnTimer(room.roomCode);
   if (room.status !== "playing") return;
 
   room.turnEndsAt = Date.now() + TURN_DURATION_MS;
 
   const timer = setTimeout(() => {
-    console.log(
-      `[GameService] Tempo esgotado na sala ${room.roomCode}. Próximo jogador.`
-    );
-    // Passa a vez para o próximo jogador
-    room.currentPlayerIndex =
-      (room.currentPlayerIndex + 1) % room.playerOrder.length;
+    const roomNow = rooms.get(room.roomCode);
+    if (!roomNow || roomNow.status !== "playing") return;
 
-    // Inicia o cronômetro para o novo jogador
-    startTurnTimer(room);
+    const inactivePlayerId = roomNow.playerOrder[roomNow.currentPlayerIndex];
+    const inactivePlayerState = roomNow.players.get(inactivePlayerId);
 
-    // Notifica todos os clientes da atualização
-    broadcastRoomState(room);
+    if (inactivePlayerState) {
+      inactivePlayerState.inactiveTurns++;
+      console.log(
+        `[GameService] Turno esgotado para ${inactivePlayerState.username}. Strikes: ${inactivePlayerState.inactiveTurns}/${MAX_INACTIVE_TURNS}`
+      );
+
+      // REGRA DE REMOÇÃO POR INATIVIDADE
+      if (inactivePlayerState.inactiveTurns >= MAX_INACTIVE_TURNS) {
+        broadcastToRoom(room.roomCode, {
+          type: "INFO_MESSAGE",
+          payload: {
+            message: `${inactivePlayerState.username} foi removido por inatividade.`,
+          },
+        });
+        handlePlayerLeave(
+          inactivePlayerState.ws,
+          room.roomCode,
+          inactivePlayerState.id
+        );
+        return;
+      }
+    }
+
+    roomNow.currentPlayerIndex =
+      (roomNow.currentPlayerIndex + 1) % roomNow.playerOrder.length;
+    startTurnTimer(roomNow);
+    broadcastRoomState(roomNow);
   }, TURN_DURATION_MS);
 
   turnTimers.set(room.roomCode, timer);
@@ -161,7 +183,7 @@ function attachMessageHandlers(
     try {
       const parsedMessage = JSON.parse(message);
       // ROTEAMENTO DE MENSAGENS
-      switch(parsedMessage.type) {
+      switch (parsedMessage.type) {
         case "MAKE_MOVE":
           handleMakeMove(ws, roomCode, player.id, parsedMessage.payload.column);
           break;
@@ -169,7 +191,9 @@ function attachMessageHandlers(
           handlePlayerLeave(ws, roomCode, player.id);
           break;
         default:
-          console.warn(`[GameService] Tipo de mensagem desconhecido: ${parsedMessage.type}`);
+          console.warn(
+            `[GameService] Tipo de mensagem desconhecido: ${parsedMessage.type}`
+          );
       }
     } catch (error) {
       console.error("[GameService] Erro ao processar mensagem:", error);
@@ -184,69 +208,83 @@ function attachMessageHandlers(
  * Lida com a saída *deliberada* de um jogador.
  * A conexão dele será encerrada no final.
  */
-function handlePlayerLeave(ws: WebSocket, roomCode: string, playerId: PlayerId) {
+function handlePlayerLeave(
+  ws: WebSocket | null,
+  roomCode: string,
+  playerId: PlayerId
+) {
   const room = rooms.get(roomCode);
   if (!room) return;
-
   const leavingPlayer = room.players.get(playerId);
   if (!leavingPlayer) return;
 
-  console.log(`[GameService] Jogador ${leavingPlayer.username} saiu deliberadamente da sala ${roomCode}.`);
+  console.log(
+    `[GameService] Jogador ${leavingPlayer.username} está saindo/sendo removido da sala ${roomCode}.`
+  );
 
   // REGRA 1: O HOST SAIU DURANTE O JOGO.
-  if (playerId === room.hostId && room.status !== 'waiting') {
+  if (playerId === room.hostId && room.status !== "waiting") {
     console.log(`[GameService] Host saiu. Fechando a sala ${roomCode}.`);
     broadcastToRoom(roomCode, {
       type: "ROOM_CLOSED",
-      payload: { message: `O host (${leavingPlayer.username}) encerrou a sala.` },
+      payload: {
+        message: `O host (${leavingPlayer.username}) encerrou a sala.`,
+      },
     });
-    room.players.forEach(p => p.ws?.close());
+    room.players.forEach((p) => p.ws?.close());
     clearTurnTimer(roomCode);
     rooms.delete(roomCode);
     return;
   }
 
-  // Se não era o host ou o jogo não começou, remove o jogador.
   room.players.delete(playerId);
   room.playerOrder = room.playerOrder.filter((id) => id !== playerId);
-  clientToRoomMap.delete(ws);
+  if (ws) {
+    clientToRoomMap.delete(ws);
+  }
 
   // REGRA 2: RESTARAM 2 JOGADORES. O JOGO CONTINUA.
-  if (room.status === 'playing' && room.players.size === 2) {
-    console.log(`[GameService] Restam 2 jogadores na sala ${roomCode}. O jogo continua.`);
+  if (room.status === "playing" && room.players.size === 2) {
+    console.log(
+      `[GameService] Restam 2 jogadores na sala ${roomCode}. O jogo continua.`
+    );
     room.currentPlayerIndex %= room.playerOrder.length;
     broadcastToRoom(roomCode, {
       type: "INFO_MESSAGE",
-      payload: { message: `${leavingPlayer.username} saiu. O jogo continua entre os 2 restantes.` }
+      payload: {
+        message: `${leavingPlayer.username} saiu. O jogo continua entre os 2 restantes.`,
+      },
     });
     startTurnTimer(room);
     broadcastRoomState(room);
 
-  // REGRA 3: RESTOU APENAS 1 JOGADOR. A SALA REINICIA.
-  } else if (room.status === 'playing' && room.players.size < 2) {
-    console.log(`[GameService] Apenas 1 jogador restou. Sala ${roomCode} voltando para o estado de espera.`);
-    room.status = 'waiting';
+    // REGRA 3: RESTOU APENAS 1 JOGADOR. A SALA REINICIA.
+  } else if (room.status === "playing" && room.players.size < 2) {
+    console.log(
+      `[GameService] Apenas 1 jogador restou. Sala ${roomCode} voltando para o estado de espera.`
+    );
+    room.status = "waiting";
     const newHost = Array.from(room.players.values())[0];
     room.hostId = newHost.id;
-    room.board = Array(9).fill(null).map(() => Array(10).fill(null));
+    room.board = Array(9)
+      .fill(null)
+      .map(() => Array(10).fill(null));
     room.currentPlayerIndex = 0;
     delete room.winner;
     delete room.turnEndsAt;
     clearTurnTimer(roomCode);
     broadcastRoomState(room);
 
-  // CASO PADRÃO (ex: jogador sai enquanto estava em 'waiting')
+    // CASO PADRÃO (ex: jogador sai enquanto estava em 'waiting')
   } else {
     broadcastRoomState(room);
   }
 
-  ws.close();
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.close();
+  }
 }
 
-/**
- * Lida com uma desconexão *inesperada* de um jogador.
- * Inicia um timer para reconexão.
- */
 function handlePlayerDisconnection(ws: WebSocket) {
   const connectionInfo = clientToRoomMap.get(ws);
   if (!connectionInfo) return;
@@ -276,11 +314,15 @@ function handlePlayerDisconnection(ws: WebSocket) {
       console.log(
         `[GameService] Tempo de reconexão para ${playerToRemove.username} esgotou. Removendo-o.`
       );
-      // Trata como saída deliberada
-      handlePlayerLeave(ws, roomCode, playerId);
+      broadcastToRoom(roomCode, {
+        type: "INFO_MESSAGE",
+        payload: {
+          message: `${playerToRemove.username} não se reconectou a tempo e foi removido.`,
+        },
+      });
+      handlePlayerLeave(null, roomCode, playerId);
     }
   }, RECONNECTION_TIMEOUT_MS);
-
   reconnectionTimers.set(playerId, timeout);
 }
 
@@ -292,14 +334,21 @@ function handleMakeMove(
 ) {
   const room = rooms.get(roomCode);
   if (!room) return;
+
+  const playerState = room.players.get(playerId);
+  if (!playerState) return;
+
   try {
     const newState = makeMove(room, playerId, column);
+
+    // MODIFICADO: Reseta o contador de inatividade após uma jogada válida
+    playerState.inactiveTurns = 0;
+
     rooms.set(roomCode, newState);
 
-    // Se o jogo acabou, limpa o cronômetro. Senão, inicia para o próximo jogador.
     if (newState.status === "finished") {
       clearTurnTimer(roomCode);
-      delete newState.turnEndsAt; // Remove o timestamp quando o jogo acaba
+      delete newState.turnEndsAt;
     } else {
       startTurnTimer(newState);
     }
