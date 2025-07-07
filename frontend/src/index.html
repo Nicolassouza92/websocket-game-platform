@@ -61,6 +61,23 @@
               </div>
             </div>
             <div id="game-info" class="game-status-bar"></div>
+
+            <!-- NOVO: Container para a votação de "Jogar Novamente" -->
+            <div
+              id="rematch-container"
+              class="game-status-bar hidden"
+            >
+              <p id="rematch-status"></p>
+              <div id="rematch-actions">
+                <button id="rematch-accept-btn">Jogar Novamente</button>
+                <button
+                  id="rematch-decline-btn"
+                  style="background-color: var(--error-color);"
+                >
+                  Sair para o Lobby
+                </button>
+              </div>
+            </div>
           </main>
 
           <!-- Coluna da Direita: Chat e Jogadores -->

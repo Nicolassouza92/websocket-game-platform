@@ -21,6 +21,8 @@ const RECONNECTION_TIMEOUT_MS = 60000; // 60 segundos
 const turnTimers = new Map<string, NodeJS.Timeout>(); // Armazena os timers ativos por sala
 const TURN_DURATION_MS = 30000; // 30 segundos
 const MAX_INACTIVE_TURNS = 2; // NOVO: Limite de turnos inativos
+const REMATCH_VOTE_DURATION_MS = 30000; // 30 segundos para votar
+const rematchTimers = new Map<string, NodeJS.Timeout>();
 
 // --- Funções Principais Exportadas ---
 // ... (createRoom e getAvailableRooms permanecem iguais)
@@ -37,6 +39,7 @@ export function createRoom(creator: Player): GameState {
     currentPlayerIndex: 0,
     status: "waiting",
     winner: undefined,
+    rematchVotes: [], // Inicializa a lista de votos
   };
   rooms.set(roomCode, initialState);
   console.log(
@@ -190,6 +193,9 @@ function attachMessageHandlers(
         case "LEAVE_ROOM": // NOVA ROTA
           handlePlayerLeave(ws, roomCode, player.id);
           break;
+        case "VOTE_REMATCH": // NOVO TIPO DE MENSAGEM
+          handleRematchVote(ws, roomCode, player.id);
+          break;
         default:
           console.warn(
             `[GameService] Tipo de mensagem desconhecido: ${parsedMessage.type}`
@@ -340,23 +346,120 @@ function handleMakeMove(
 
   try {
     const newState = makeMove(room, playerId, column);
-
-    // MODIFICADO: Reseta o contador de inatividade após uma jogada válida
     playerState.inactiveTurns = 0;
-
     rooms.set(roomCode, newState);
 
     if (newState.status === "finished") {
       clearTurnTimer(roomCode);
       delete newState.turnEndsAt;
+      // NOVO: Inicia a fase de votação
+      startRematchVotePhase(newState);
     } else {
       startTurnTimer(newState);
     }
-
     broadcastRoomState(newState);
   } catch (error: any) {
     console.error(`[GameService] Jogada inválida: ${error.message}`);
     sendError(ws, error.message);
+  }
+}
+
+// --- NOVAS FUNÇÕES PARA O CICLO DE "JOGAR NOVAMENTE" ---
+
+function startRematchVotePhase(room: GameState) {
+  console.log(
+    `[GameService] Jogo finalizado na sala ${room.roomCode}. Iniciando votação para jogar novamente.`
+  );
+  room.rematchVoteEndsAt = Date.now() + REMATCH_VOTE_DURATION_MS;
+  room.rematchVotes = [];
+
+  const timer = setTimeout(() => {
+    processRematchVotes(room.roomCode);
+  }, REMATCH_VOTE_DURATION_MS);
+
+  rematchTimers.set(room.roomCode, timer);
+}
+
+function processRematchVotes(roomCode: string) {
+  const room = rooms.get(roomCode);
+  if (!room) return;
+
+  console.log(`[GameService] Votação encerrada na sala ${roomCode}.`);
+  rematchTimers.delete(roomCode);
+
+  const playersWhoVoted = new Set(room.rematchVotes);
+  const playersToRemove: PlayerState[] = [];
+
+  // Identifica quem não votou
+  room.players.forEach((player) => {
+    if (!playersWhoVoted.has(player.id)) {
+      playersToRemove.push(player);
+    }
+  });
+
+  // Remove os jogadores que não votaram
+  if (playersToRemove.length > 0) {
+    playersToRemove.forEach((player) => {
+      broadcastToRoom(roomCode, {
+        type: "INFO_MESSAGE",
+        payload: {
+          message: `${player.username} não votou e foi removido da sala.`,
+        },
+      });
+      handlePlayerLeave(player.ws, roomCode, player.id);
+    });
+  }
+
+  // Se, após as remoções, todos os jogadores restantes votaram sim, reinicia o jogo.
+  const remainingPlayers = room.players.size;
+  if (remainingPlayers > 1 && playersWhoVoted.size === remainingPlayers) {
+    resetGameForRematch(room);
+  }
+}
+
+function resetGameForRematch(room: GameState) {
+  console.log(
+    `[GameService] Todos concordaram! Reiniciando jogo na sala ${room.roomCode}.`
+  );
+  room.status = "playing";
+  room.board = Array(9)
+    .fill(null)
+    .map(() => Array(10).fill(null));
+  room.currentPlayerIndex = 0;
+  room.winner = undefined;
+  room.rematchVotes = [];
+  delete room.rematchVoteEndsAt;
+  room.players.forEach((p) => (p.inactiveTurns = 0));
+
+  startTurnTimer(room);
+  broadcastRoomState(room);
+}
+
+function handleRematchVote(
+  ws: WebSocket,
+  roomCode: string,
+  playerId: PlayerId
+) {
+  const room = rooms.get(roomCode);
+  if (
+    !room ||
+    room.status !== "finished" ||
+    room.rematchVotes.includes(playerId)
+  ) {
+    return;
+  }
+
+  console.log(
+    `[GameService] Jogador com ID ${playerId} votou para jogar novamente na sala ${roomCode}.`
+  );
+  room.rematchVotes.push(playerId);
+  broadcastRoomState(room);
+
+  // Se todos os jogadores atuais votaram, não espera o timer.
+  if (room.rematchVotes.length === room.players.size) {
+    const timer = rematchTimers.get(roomCode);
+    if (timer) clearTimeout(timer);
+    processRematchVotes(roomCode);
   }
 }
 
@@ -405,6 +508,9 @@ function getGameStateForClient(room: GameState): GameStateForClient {
     currentPlayerIndex: room.currentPlayerIndex,
     status: room.status,
     winner: room.winner,
-    turnEndsAt: room.turnEndsAt, // ADICIONADO
+    turnEndsAt: room.turnEndsAt,
+    // NOVOS
+    rematchVotes: room.rematchVotes,
+    rematchVoteEndsAt: room.rematchVoteEndsAt,
   };
 }
