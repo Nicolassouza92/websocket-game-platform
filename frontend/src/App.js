@@ -29,6 +29,9 @@ document.addEventListener("DOMContentLoaded", () => {
     leaveRoomBtn: document.getElementById("leaveRoomBtn"),
   };
 
+  // --- NOVO: Variável para controlar o intervalo do cronômetro ---
+  let turnCountdownInterval = null;
+
   // =============================================
   // --- FUNÇÃO CENTRAL DE RENDERIZAÇÃO ---
   // =============================================
@@ -44,17 +47,49 @@ document.addEventListener("DOMContentLoaded", () => {
       const isInGame = !!currentRoom;
       elements.lobby.classList.toggle("hidden", isInGame);
       elements.gameScreen.classList.toggle("hidden", !isInGame);
-
       elements.leaveRoomBtn.classList.toggle("hidden", !isInGame);
 
       if (isInGame) {
         renderGameInfo(currentRoom);
         renderPlayerList(currentRoom.players);
         renderBoard(currentRoom.board);
+
+        // --- Gerenciamento do Cronômetro ---
+        if (currentRoom.status === 'playing') {
+          startTurnCountdown(); // Garante que o cronômetro esteja rodando
+        } else {
+          stopTurnCountdown(); // Para o cronômetro se o jogo não estiver em andamento
+        }
       } else {
+        stopTurnCountdown(); // Para o cronômetro se sair da sala
         renderRoomList(availableRooms);
       }
+    } else {
+      stopTurnCountdown(); // Para o cronômetro ao fazer logout
     }
+  }
+
+  // --- NOVAS FUNÇÕES AUXILIARES PARA O CRONÔMETRO ---
+  function stopTurnCountdown() {
+    if (turnCountdownInterval) {
+      clearInterval(turnCountdownInterval);
+      turnCountdownInterval = null;
+    }
+  }
+
+  function startTurnCountdown() {
+    // Se o cronômetro já estiver rodando, não faz nada
+    if (turnCountdownInterval) return;
+
+    turnCountdownInterval = setInterval(() => {
+      // A cada segundo, apenas renderiza novamente a barra de informações do jogo
+      if (state.currentRoom) {
+        renderGameInfo(state.currentRoom);
+      } else {
+        // Medida de segurança: se a sala sumir, para o cronômetro
+        stopTurnCountdown();
+      }
+    }, 1000); // Atualiza a cada 1 segundo
   }
 
   // =============================================
@@ -84,20 +119,33 @@ document.addEventListener("DOMContentLoaded", () => {
       elements.gameInfo.textContent = `Aguardando jogadores... (${roomState.players.length}/3)`;
     } else if (roomState.status === "playing") {
       const currentPlayer = roomState.players[roomState.currentPlayerIndex];
-      if (
+      const isMyTurn =
         state.currentUser &&
         currentPlayer &&
-        currentPlayer.id === state.currentUser.userId
-      ) {
-        elements.gameInfo.textContent = "É a sua vez!";
+        currentPlayer.id === state.currentUser.userId;
+
+      // --- LÓGICA DE EXIBIÇÃO DO CRONÔMETRO ---
+      let timerText = "";
+      if (roomState.turnEndsAt) {
+        // Calcula os segundos restantes, garantindo que não seja negativo
+        const timeLeft = Math.max(0, Math.round((roomState.turnEndsAt - Date.now()) / 1000));
+        // Formata para sempre ter dois dígitos (ex: 09, 08...)
+        const seconds = String(timeLeft).padStart(2, '0');
+        timerText = ` (Tempo: ${seconds}s)`;
+      }
+
+      if (isMyTurn) {
+        elements.gameInfo.textContent = `É a sua vez!${timerText}`;
       } else if (currentPlayer) {
-        elements.gameInfo.textContent = `Aguardando a jogada de ${currentPlayer.username}...`;
+        elements.gameInfo.textContent = `Aguardando a jogada de ${currentPlayer.username}...${timerText}`;
       }
     } else if (roomState.status === "finished") {
       const winner = roomState.players.find((p) => p.id === roomState.winner);
       elements.gameInfo.textContent = winner
         ? `O vencedor é ${winner.username}!`
         : "O jogo empatou!";
+      // Garante que o texto do cronômetro seja removido ao final do jogo
+      stopTurnCountdown();
     }
   }
 

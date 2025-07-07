@@ -17,13 +17,14 @@ const clientToRoomMap = new Map<
 const reconnectionTimers = new Map<PlayerId, NodeJS.Timeout>();
 const RECONNECTION_TIMEOUT_MS = 60000; // 60 segundos
 
-// --- Funções Principais Exportadas ---
+// --- NOVAS CONSTANTES E MAPA PARA O CRONÔMETRO ---
+const turnTimers = new Map<string, NodeJS.Timeout>(); // Armazena os timers ativos por sala
+const TURN_DURATION_MS = 30000; // 30 segundos
 
+// --- Funções Principais Exportadas ---
+// ... (createRoom e getAvailableRooms permanecem iguais)
 export function createRoom(creator: Player): GameState {
   const roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-
-  // CORREÇÃO: Ao criar a sala, a lista de players começa VAZIA.
-  // O criador (host) vai "entrar" na sua própria sala via WebSocket, como todo mundo.
   const initialState: GameState = {
     roomCode,
     hostId: creator.id,
@@ -36,7 +37,6 @@ export function createRoom(creator: Player): GameState {
     status: "waiting",
     winner: undefined,
   };
-
   rooms.set(roomCode, initialState);
   console.log(
     `[GameService] Sala ${roomCode} criada por ${creator.username}. O host precisa se conectar.`
@@ -55,6 +55,7 @@ export function handlePlayerConnection(
   roomCode: string,
   player: Player
 ) {
+  // ... (lógica de conexão e reconexão existente)
   const room = rooms.get(roomCode);
   if (!room) {
     sendError(ws, "Sala não encontrada.", true);
@@ -104,14 +105,53 @@ export function handlePlayerConnection(
     console.log(`[GameService] Sala ${roomCode} cheia. Iniciando jogo.`);
     room.status = "playing";
     room.currentPlayerIndex = 0;
+    // INICIA O CRONÔMETRO PARA O PRIMEIRO JOGADOR
+    startTurnTimer(room);
   }
 
   broadcastRoomState(room);
   attachMessageHandlers(ws, roomCode, player);
 }
 
-// --- Funções Internas ---
+// --- NOVAS FUNÇÕES INTERNAS PARA GERENCIAR O CRONÔMETRO ---
 
+/** Cancela qualquer cronômetro de turno existente para uma sala. */
+function clearTurnTimer(roomCode: string) {
+  const existingTimer = turnTimers.get(roomCode);
+  if (existingTimer) {
+    clearTimeout(existingTimer);
+    turnTimers.delete(roomCode);
+  }
+}
+
+/** Inicia um novo cronômetro de turno para o jogador atual na sala. */
+function startTurnTimer(room: GameState) {
+  clearTurnTimer(room.roomCode); // Garante que não haja timers duplicados
+
+  if (room.status !== "playing") return;
+
+  room.turnEndsAt = Date.now() + TURN_DURATION_MS;
+
+  const timer = setTimeout(() => {
+    console.log(
+      `[GameService] Tempo esgotado na sala ${room.roomCode}. Próximo jogador.`
+    );
+    // Passa a vez para o próximo jogador
+    room.currentPlayerIndex =
+      (room.currentPlayerIndex + 1) % room.playerOrder.length;
+
+    // Inicia o cronômetro para o novo jogador
+    startTurnTimer(room);
+
+    // Notifica todos os clientes da atualização
+    broadcastRoomState(room);
+  }, TURN_DURATION_MS);
+
+  turnTimers.set(room.roomCode, timer);
+}
+
+// --- Funções Internas Modificadas ---
+// ... (attachMessageHandlers permanece igual)
 function attachMessageHandlers(
   ws: WebSocket,
   roomCode: string,
@@ -131,7 +171,9 @@ function attachMessageHandlers(
     handlePlayerDisconnection(ws);
   });
 }
+
 function handlePlayerDisconnection(ws: WebSocket) {
+  // ... (lógica existente)
   const connectionInfo = clientToRoomMap.get(ws);
   if (!connectionInfo) return;
   const { roomCode, playerId } = connectionInfo;
@@ -145,10 +187,12 @@ function handlePlayerDisconnection(ws: WebSocket) {
   disconnectedPlayer.ws = null;
   clientToRoomMap.delete(ws);
   broadcastRoomState(room);
+
   const timeout = setTimeout(() => {
     const currentRoom = rooms.get(roomCode);
     if (!currentRoom) return;
     const playerToRemove = currentRoom.players.get(playerId);
+
     if (playerToRemove && playerToRemove.ws === null) {
       console.log(
         `[GameService] Tempo de reconexão para ${playerToRemove.username} esgotou. Removendo-o.`
@@ -166,6 +210,7 @@ function handlePlayerDisconnection(ws: WebSocket) {
           },
         });
         currentRoom.players.forEach((p) => p.ws?.close());
+        clearTurnTimer(roomCode); // LIMPA O CRONÔMETRO SE A SALA FOR FECHADA
         rooms.delete(roomCode);
       } else {
         broadcastRoomState(currentRoom);
@@ -174,6 +219,7 @@ function handlePlayerDisconnection(ws: WebSocket) {
   }, RECONNECTION_TIMEOUT_MS);
   reconnectionTimers.set(playerId, timeout);
 }
+
 function handleMakeMove(
   ws: WebSocket,
   roomCode: string,
@@ -185,12 +231,23 @@ function handleMakeMove(
   try {
     const newState = makeMove(room, playerId, column);
     rooms.set(roomCode, newState);
+
+    // Se o jogo acabou, limpa o cronômetro. Senão, inicia para o próximo jogador.
+    if (newState.status === "finished") {
+      clearTurnTimer(roomCode);
+      delete newState.turnEndsAt; // Remove o timestamp quando o jogo acaba
+    } else {
+      startTurnTimer(newState);
+    }
+
     broadcastRoomState(newState);
   } catch (error: any) {
     console.error(`[GameService] Jogada inválida: ${error.message}`);
     sendError(ws, error.message);
   }
 }
+
+// ... (broadcastToRoom e broadcastRoomState permanecem iguais)
 function broadcastToRoom(roomCode: string, message: object) {
   const room = rooms.get(roomCode);
   if (!room) return;
@@ -207,6 +264,8 @@ function broadcastRoomState(room: GameState) {
     payload: { gameState: getGameStateForClient(room) },
   });
 }
+
+// ... (sendError permanece igual)
 function sendError(
   ws: WebSocket,
   message: string,
@@ -217,6 +276,8 @@ function sendError(
     ws.close();
   }
 }
+
+// ATUALIZE getGameStateForClient PARA ENVIAR O NOVO CAMPO
 function getGameStateForClient(room: GameState): GameStateForClient {
   return {
     roomCode: room.roomCode,
@@ -231,5 +292,6 @@ function getGameStateForClient(room: GameState): GameStateForClient {
     currentPlayerIndex: room.currentPlayerIndex,
     status: room.status,
     winner: room.winner,
+    turnEndsAt: room.turnEndsAt, // ADICIONADO
   };
 }
