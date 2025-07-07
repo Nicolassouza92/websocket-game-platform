@@ -1,5 +1,12 @@
+// backend/src/services/gameService.ts
 import { WebSocket } from "ws";
-import { GameState, Player, PlayerId } from "../game/state";
+import {
+  GameState,
+  Player,
+  PlayerId,
+  PlayerState,
+  GameStateForClient,
+} from "../game/state";
 import { makeMove } from "../game/logic";
 
 const rooms = new Map<string, GameState>();
@@ -7,17 +14,21 @@ const clientToRoomMap = new Map<
   WebSocket,
   { roomCode: string; playerId: PlayerId }
 >();
+const reconnectionTimers = new Map<PlayerId, NodeJS.Timeout>();
+const RECONNECTION_TIMEOUT_MS = 60000; // 60 segundos
 
-/**
- * Cria uma nova sala de jogo em memória.
- */
+// --- Funções Principais Exportadas ---
+
 export function createRoom(creator: Player): GameState {
   const roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
 
+  // CORREÇÃO: Ao criar a sala, a lista de players começa VAZIA.
+  // O criador (host) vai "entrar" na sua própria sala via WebSocket, como todo mundo.
   const initialState: GameState = {
     roomCode,
-    host: creator,
-    players: [], // O criador será adicionado em handlePlayerConnection
+    hostId: creator.id,
+    players: new Map<PlayerId, PlayerState>(),
+    playerOrder: [],
     board: Array(9)
       .fill(null)
       .map(() => Array(10).fill(null)),
@@ -27,167 +38,142 @@ export function createRoom(creator: Player): GameState {
   };
 
   rooms.set(roomCode, initialState);
-  console.log(`[GameService] Sala ${roomCode} criada por ${creator.username}.`);
+  console.log(
+    `[GameService] Sala ${roomCode} criada por ${creator.username}. O host precisa se conectar.`
+  );
   return initialState;
 }
 
-/**
- * Retorna uma lista de salas disponíveis para entrar.
- */
-export function getAvailableRooms(): Pick<
-  GameState,
-  "roomCode" | "players" | "status"
->[] {
+export function getAvailableRooms(): GameStateForClient[] {
   return Array.from(rooms.values())
-    .filter((room) => room.status === "waiting" && room.players.length < 3)
-    .map(({ roomCode, players, status }) => ({ roomCode, players, status }));
+    .filter((room) => room.status === "waiting" && room.players.size < 3)
+    .map(getGameStateForClient);
 }
 
-/**
- * Lida com uma nova conexão de um jogador a uma sala específica.
- */
 export function handlePlayerConnection(
   ws: WebSocket,
   roomCode: string,
   player: Player
 ) {
   const room = rooms.get(roomCode);
-
   if (!room) {
-    ws.send(
-      JSON.stringify({
-        type: "ERROR",
-        payload: { message: "Sala não encontrada." },
-      })
-    );
-    ws.close();
-    return;
-  }
-  if (room.players.some((p) => p.id === player.id)) {
-    ws.send(
-      JSON.stringify({
-        type: "ERROR",
-        payload: { message: "Você já está conectado a esta sala." },
-      })
-    );
-    ws.close();
-    return;
-  }
-  if (room.status !== "waiting" || room.players.length >= 3) {
-    ws.send(
-      JSON.stringify({
-        type: "ERROR",
-        payload: { message: "A sala não está aceitando novos jogadores." },
-      })
-    );
-    ws.close();
+    sendError(ws, "Sala não encontrada.", true);
     return;
   }
 
-  room.players.push(player);
+  const existingPlayerState = room.players.get(player.id);
+
+  // --- LÓGICA DE RECONEXÃO ---
+  if (existingPlayerState && existingPlayerState.ws === null) {
+    console.log(
+      `[GameService] Jogador ${player.username} RECONECTOU-SE à sala ${roomCode}.`
+    );
+    const timer = reconnectionTimers.get(player.id);
+    if (timer) {
+      clearTimeout(timer);
+      reconnectionTimers.delete(player.id);
+    }
+    existingPlayerState.ws = ws;
+    clientToRoomMap.set(ws, { roomCode, playerId: player.id });
+    broadcastRoomState(room);
+    attachMessageHandlers(ws, roomCode, player);
+    return;
+  }
+
+  // --- LÓGICA PARA NOVOS JOGADORES (INCLUINDO O HOST NA PRIMEIRA VEZ) ---
+  if (room.players.has(player.id)) {
+    sendError(ws, "Você já está conectado a esta sala em outra aba.", true);
+    return;
+  }
+  if (room.status !== "waiting" || room.players.size >= 3) {
+    sendError(ws, "A sala não está aceitando novos jogadores.", true);
+    return;
+  }
+
+  const newPlayerState: PlayerState = { ...player, ws };
+  room.players.set(player.id, newPlayerState);
+  if (room.playerOrder.indexOf(player.id) === -1) {
+    room.playerOrder.push(player.id);
+  }
   clientToRoomMap.set(ws, { roomCode, playerId: player.id });
   console.log(
-    `[GameService] Jogador ${player.username} entrou na sala ${roomCode}. (${room.players.length}/3)`
+    `[GameService] Jogador ${player.username} entrou na sala ${roomCode}. (${room.players.size}/3)`
   );
 
-  if (room.players.length === 3) {
+  if (room.players.size === 3) {
     console.log(`[GameService] Sala ${roomCode} cheia. Iniciando jogo.`);
     room.status = "playing";
-    room.players.sort((a, b) =>
-      a.id === room.host.id ? -1 : b.id === room.host.id ? 1 : 0
-    );
-    room.currentPlayerIndex = room.players.findIndex(
-      (p) => p.id === room.host.id
-    );
-    broadcastToRoom(roomCode, {
-      type: "GAME_START",
-      payload: { gameState: room },
-    });
-  } else {
-    broadcastToRoom(roomCode, {
-      type: "PLAYER_JOINED",
-      payload: { gameState: room },
-    });
+    room.currentPlayerIndex = 0;
   }
 
+  broadcastRoomState(room);
+  attachMessageHandlers(ws, roomCode, player);
+}
+
+// --- Funções Internas ---
+
+function attachMessageHandlers(
+  ws: WebSocket,
+  roomCode: string,
+  player: Player
+) {
   ws.on("message", (message: string) => {
     try {
       const parsedMessage = JSON.parse(message);
-      switch (parsedMessage.type) {
-        case "MAKE_MOVE":
-          handleMakeMove(ws, roomCode, player.id, parsedMessage.payload.column);
-          break;
-        case "SEND_CHAT_MESSAGE":
-          handleChatMessage(roomCode, player, parsedMessage.payload.text);
-          break;
+      if (parsedMessage.type === "MAKE_MOVE") {
+        handleMakeMove(ws, roomCode, player.id, parsedMessage.payload.column);
       }
     } catch (error) {
-      console.error(
-        "[GameService] Erro ao processar mensagem do WebSocket:",
-        error
-      );
+      console.error("[GameService] Erro ao processar mensagem:", error);
     }
   });
-
   ws.on("close", () => {
     handlePlayerDisconnection(ws);
   });
 }
-
-function handleChatMessage(roomCode: string, sender: Player, text: string) {
-  const message = {
-    type: "NEW_MESSAGE",
-    payload: {
-      username: sender.username,
-      text: text,
-    },
-  };
-  broadcastToRoom(roomCode, message);
-}
-
 function handlePlayerDisconnection(ws: WebSocket) {
   const connectionInfo = clientToRoomMap.get(ws);
   if (!connectionInfo) return;
-
   const { roomCode, playerId } = connectionInfo;
   const room = rooms.get(roomCode);
   if (!room) return;
-
-  const disconnectedPlayer = room.players.find((p) => p.id === playerId);
-  clientToRoomMap.delete(ws);
-  room.players = room.players.filter((p) => p.id !== playerId);
-
+  const disconnectedPlayer = room.players.get(playerId);
+  if (!disconnectedPlayer) return;
   console.log(
-    `[GameService] Jogador ${
-      disconnectedPlayer?.username || playerId
-    } desconectou da sala ${roomCode}.`
+    `[GameService] Jogador ${disconnectedPlayer.username} desconectou. Iniciando timer de remoção.`
   );
-
-  if (room.players.length < 3 && room.status !== "waiting") {
-    console.log(
-      `[GameService] Número de jogadores insuficiente. Fechando a sala ${roomCode}.`
-    );
-    broadcastToRoom(roomCode, {
-      type: "ROOM_CLOSED",
-      payload: {
-        message: `A sala foi fechada porque ${disconnectedPlayer?.username} saiu.`,
-      },
-    });
-    room.players.forEach((p) => {
-      const playerWs = Array.from(clientToRoomMap.keys()).find(
-        (key) => clientToRoomMap.get(key)?.playerId === p.id
+  disconnectedPlayer.ws = null;
+  clientToRoomMap.delete(ws);
+  broadcastRoomState(room);
+  const timeout = setTimeout(() => {
+    const currentRoom = rooms.get(roomCode);
+    if (!currentRoom) return;
+    const playerToRemove = currentRoom.players.get(playerId);
+    if (playerToRemove && playerToRemove.ws === null) {
+      console.log(
+        `[GameService] Tempo de reconexão para ${playerToRemove.username} esgotou. Removendo-o.`
       );
-      playerWs?.close();
-    });
-    rooms.delete(roomCode);
-  } else {
-    broadcastToRoom(roomCode, {
-      type: "PLAYER_LEFT",
-      payload: { gameState: room, disconnectedPlayerId: playerId },
-    });
-  }
+      currentRoom.players.delete(playerId);
+      currentRoom.playerOrder = currentRoom.playerOrder.filter(
+        (id) => id !== playerId
+      );
+      reconnectionTimers.delete(playerId);
+      if (currentRoom.players.size < 3 && currentRoom.status !== "waiting") {
+        broadcastToRoom(roomCode, {
+          type: "ROOM_CLOSED",
+          payload: {
+            message: `A sala foi fechada porque ${playerToRemove.username} não se reconectou a tempo.`,
+          },
+        });
+        currentRoom.players.forEach((p) => p.ws?.close());
+        rooms.delete(roomCode);
+      } else {
+        broadcastRoomState(currentRoom);
+      }
+    }
+  }, RECONNECTION_TIMEOUT_MS);
+  reconnectionTimers.set(playerId, timeout);
 }
-
 function handleMakeMove(
   ws: WebSocket,
   roomCode: string,
@@ -196,29 +182,54 @@ function handleMakeMove(
 ) {
   const room = rooms.get(roomCode);
   if (!room) return;
-
   try {
     const newState = makeMove(room, playerId, column);
     rooms.set(roomCode, newState);
-    broadcastToRoom(roomCode, {
-      type: "GAME_STATE_UPDATE",
-      payload: { gameState: newState },
-    });
+    broadcastRoomState(newState);
   } catch (error: any) {
-    console.error(
-      `[GameService] Jogada inválida na sala ${roomCode} pelo jogador ${playerId}: ${error.message}`
-    );
-    ws.send(
-      JSON.stringify({ type: "ERROR", payload: { message: error.message } })
-    );
+    console.error(`[GameService] Jogada inválida: ${error.message}`);
+    sendError(ws, error.message);
   }
 }
-
 function broadcastToRoom(roomCode: string, message: object) {
+  const room = rooms.get(roomCode);
+  if (!room) return;
   const messageString = JSON.stringify(message);
-  for (const [client, info] of clientToRoomMap.entries()) {
-    if (info.roomCode === roomCode && client.readyState === WebSocket.OPEN) {
-      client.send(messageString);
+  room.players.forEach((player) => {
+    if (player.ws && player.ws.readyState === WebSocket.OPEN) {
+      player.ws.send(messageString);
     }
+  });
+}
+function broadcastRoomState(room: GameState) {
+  broadcastToRoom(room.roomCode, {
+    type: "GAME_STATE_UPDATE",
+    payload: { gameState: getGameStateForClient(room) },
+  });
+}
+function sendError(
+  ws: WebSocket,
+  message: string,
+  shouldClose: boolean = false
+) {
+  ws.send(JSON.stringify({ type: "ERROR", payload: { message } }));
+  if (shouldClose) {
+    ws.close();
   }
+}
+function getGameStateForClient(room: GameState): GameStateForClient {
+  return {
+    roomCode: room.roomCode,
+    hostId: room.hostId,
+    players: Array.from(room.players.values()).map((p) => ({
+      id: p.id,
+      username: p.username,
+      isOnline: p.ws !== null,
+    })),
+    board: room.board,
+    playerOrder: room.playerOrder,
+    currentPlayerIndex: room.currentPlayerIndex,
+    status: room.status,
+    winner: room.winner,
+  };
 }
