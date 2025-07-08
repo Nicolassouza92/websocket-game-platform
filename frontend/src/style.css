@@ -397,6 +397,7 @@ button:disabled {
   display: flex;
   flex-direction: column; /* As mensagens serão adicionadas aqui */
   gap: 12px; /* Espaçamento entre os balões de chat */
+  padding-right: 10px; /* Adiciona um espaçamento à direita */
 }
 
 /* NOVO: Wrapper para cada mensagem, controla o alinhamento */
@@ -536,4 +537,37 @@ button:disabled {
 }
 .snackbar.error {
     background-color: var(--error-color);
+}
+
+/* ============================================= */
+/* --- Estilização da Barra de Rolagem (Scrollbar) --- */
+/* ============================================= */
+
+/* Aplica a todos os elementos com scroll, como o #chat-messages */
+::-webkit-scrollbar {
+  width: 8px; /* Largura da barra de rolagem vertical */
+}
+
+/* O fundo da "pista" por onde a barra corre */
+::-webkit-scrollbar-track {
+  background: var(--bg-surface); /* Cor de fundo um pouco mais escura */
+  border-radius: 10px;
+}
+
+/* O "polegar", a parte que você arrasta */
+::-webkit-scrollbar-thumb {
+  background-color: var(--border-color); /* Cinza mais claro para o polegar */
+  border-radius: 10px;
+  border: 2px solid var(--bg-surface); /* Cria um pequeno espaçamento ao redor do polegar */
+}
+
+/* Efeito ao passar o mouse sobre o polegar */
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--text-secondary); /* Fica um pouco mais claro */
+}
+
+/* Para compatibilidade com Firefox */
+* {
+  scrollbar-width: thin; /* Deixa a barra mais fina */
+  scrollbar-color: var(--border-color) var(--bg-surface); /* cor do polegar | cor da pista */
 }
