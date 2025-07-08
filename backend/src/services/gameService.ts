@@ -196,6 +196,9 @@ function attachMessageHandlers(
         case "VOTE_REMATCH": // NOVO TIPO DE MENSAGEM
           handleRematchVote(ws, roomCode, player.id);
           break;
+        case "SEND_CHAT_MESSAGE":
+          handleChatMessage(roomCode, player, parsedMessage.payload.text);
+          break;
         default:
           console.warn(
             `[GameService] Tipo de mensagem desconhecido: ${parsedMessage.type}`
@@ -208,6 +211,19 @@ function attachMessageHandlers(
   ws.on("close", () => {
     handlePlayerDisconnection(ws);
   });
+}
+
+function handleChatMessage(roomCode: string, sender: Player, text: string) {
+  if (!text || text.length > 200) return;
+
+  const messagePayload = {
+    type: "NEW_MESSAGE",
+    payload: {
+      username: sender.username,
+      text: text,
+    },
+  };
+  broadcastToRoom(roomCode, messagePayload);
 }
 
 /**
