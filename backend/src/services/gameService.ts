@@ -129,6 +129,15 @@ function clearTurnTimer(roomCode: string) {
   }
 }
 
+/** Cancela qualquer cronômetro de rematch existente para uma sala. */
+function clearRematchTimer(roomCode: string) {
+  const existingTimer = rematchTimers.get(roomCode);
+  if (existingTimer) {
+    clearTimeout(existingTimer);
+    rematchTimers.delete(roomCode);
+  }
+}
+
 /** Inicia um novo cronômetro de turno para o jogador atual na sala. */
 function startTurnTimer(room: GameState) {
   clearTurnTimer(room.roomCode);
@@ -227,8 +236,7 @@ function handleChatMessage(roomCode: string, sender: Player, text: string) {
 }
 
 /**
- * Lida com a saída *deliberada* de um jogador.
- * A conexão dele será encerrada no final.
+ * Lida com a saída *deliberada* ou forçada de um jogador.
  */
 function handlePlayerLeave(
   ws: WebSocket | null,
@@ -244,50 +252,76 @@ function handlePlayerLeave(
     `[GameService] Jogador ${leavingPlayer.username} está saindo/sendo removido da sala ${roomCode}.`
   );
 
-  // REGRA 1: O HOST SAIU DURANTE O JOGO.
-  if (playerId === room.hostId && room.status !== "waiting") {
-    console.log(`[GameService] Host saiu. Fechando a sala ${roomCode}.`);
+  // MUDANÇA 1: Se o host sai, a sala fecha, INDEPENDENTE do status.
+  if (playerId === room.hostId) {
+    console.log(
+      `[GameService] Host (${leavingPlayer.username}) saiu. Fechando a sala ${roomCode}.`
+    );
     broadcastToRoom(roomCode, {
       type: "ROOM_CLOSED",
       payload: {
         message: `O host (${leavingPlayer.username}) encerrou a sala.`,
       },
     });
-    room.players.forEach((p) => p.ws?.close());
+    // Fecha a conexão de todos os outros jogadores
+    room.players.forEach((p) => {
+      if (p.id !== playerId && p.ws && p.ws.readyState === WebSocket.OPEN) {
+        p.ws.close();
+      }
+    });
+    // Limpa timers e remove a sala
     clearTurnTimer(roomCode);
+    clearRematchTimer(roomCode);
     rooms.delete(roomCode);
-    return;
+    // Fecha a conexão do host que saiu
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.close();
+    }
+    return; // A função termina aqui, a sala não existe mais.
   }
 
+  // Se não for o host, remove o jogador da sala
   room.players.delete(playerId);
   room.playerOrder = room.playerOrder.filter((id) => id !== playerId);
   if (ws) {
     clientToRoomMap.delete(ws);
   }
 
-  // REGRA 2: RESTARAM 2 JOGADORES. O JOGO CONTINUA.
+  // MUDANÇA 2: Se a sala ficou vazia após a saída de um jogador não-host.
+  if (room.players.size === 0) {
+    console.log(`[GameService] Sala ${roomCode} ficou vazia. Removendo.`);
+    clearTurnTimer(roomCode);
+    clearRematchTimer(roomCode);
+    rooms.delete(roomCode);
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.close();
+    }
+    return; // A função termina aqui.
+  }
+
+  // Lógica restante para quando a sala ainda tem jogadores...
   if (room.status === "playing" && room.players.size === 2) {
     console.log(
       `[GameService] Restam 2 jogadores na sala ${roomCode}. O jogo continua.`
     );
-    room.currentPlayerIndex %= room.playerOrder.length;
+    room.currentPlayerIndex %= room.playerOrder.length; // Garante que o index seja válido
     broadcastToRoom(roomCode, {
       type: "INFO_MESSAGE",
       payload: {
         message: `${leavingPlayer.username} saiu. O jogo continua entre os 2 restantes.`,
       },
     });
-    startTurnTimer(room);
+    startTurnTimer(room); // Reinicia o timer para o jogador atual
     broadcastRoomState(room);
-
-    // REGRA 3: RESTOU APENAS 1 JOGADOR. A SALA REINICIA.
   } else if (room.status === "playing" && room.players.size < 2) {
     console.log(
       `[GameService] Apenas 1 jogador restou. Sala ${roomCode} voltando para o estado de espera.`
     );
     room.status = "waiting";
     const newHost = Array.from(room.players.values())[0];
-    room.hostId = newHost.id;
+    if (newHost) {
+      room.hostId = newHost.id;
+    }
     room.board = Array(9)
       .fill(null)
       .map(() => Array(10).fill(null));
@@ -296,12 +330,12 @@ function handlePlayerLeave(
     delete room.turnEndsAt;
     clearTurnTimer(roomCode);
     broadcastRoomState(room);
-
-    // CASO PADRÃO (ex: jogador sai enquanto estava em 'waiting')
   } else {
+    // Caso padrão (ex: jogador sai enquanto estava em 'waiting' ou 'finished')
     broadcastRoomState(room);
   }
 
+  // Fecha a conexão do jogador que saiu
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.close();
   }
