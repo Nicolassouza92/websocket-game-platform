@@ -83,6 +83,19 @@ button:disabled {
   gap: 2rem;
 }
 
+/* NOVO: Estilo para o link de "Voltar" */
+.back-to-home-link {
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 0.9rem;
+  margin-bottom: -1rem; /* Puxa os formulários um pouco para cima */
+  transition: color 0.2s;
+}
+.back-to-home-link:hover {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
 .form-wrapper {
   background-color: var(--bg-surface);
   padding: 2rem;
@@ -108,6 +121,22 @@ button:disabled {
   padding: 12px;
   border-radius: 4px;
   font-size: 1rem;
+}
+
+/* Estilo para o link de alternância */
+.auth-switch {
+  margin-top: 1.5rem;
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+.auth-switch a {
+  color: var(--accent-color);
+  font-weight: 600;
+  text-decoration: none;
+}
+.auth-switch a:hover {
+  text-decoration: underline;
 }
 
 /* ============================================= */

@@ -3,35 +3,50 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Quatro em Linha - Multiplayer</title>
+    <title>3 em Linha - Multiplayer</title>
     <!-- Adicione o link para o seu arquivo de estilos -->
-    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="app-style.css" />
   </head>
   <body>
     <!-- Container para a tela de autenticação (aparece quando deslogado) -->
     <div id="authContainer">
-      <div class="form-wrapper">
+      <!-- NOVO: Adicionado link para voltar -->
+      <a href="index.html" class="back-to-home-link"
+        >← Voltar para a Página Inicial</a
+      >
+
+      <!-- ATUALIZADO: Adicionado ID 'registerWrapper' -->
+      <div class="form-wrapper" id="registerWrapper">
         <h2>Registro</h2>
         <form id="registerForm">
           <input type="text" name="username" placeholder="Usuário" required />
           <input type="password" name="password" placeholder="Senha" required />
           <button type="submit">Registrar</button>
         </form>
+        <!-- NOVO: Link para alternar para o login -->
+        <p class="auth-switch">
+          Já tem uma conta? <a href="#login">Faça o login</a>
+        </p>
       </div>
-      <div class="form-wrapper">
+      <!-- ATUALIZADO: Adicionado ID 'loginWrapper' -->
+      <div class="form-wrapper" id="loginWrapper">
         <h2>Login</h2>
         <form id="loginForm">
           <input type="text" name="username" placeholder="Usuário" required />
           <input type="password" name="password" placeholder="Senha" required />
           <button type="submit">Login</button>
         </form>
+        <!-- NOVO: Link para alternar para o registro -->
+        <p class="auth-switch">
+          Não tem uma conta? <a href="#register">Registre-se</a>
+        </p>
       </div>
     </div>
 
     <!-- Container principal da aplicação (aparece quando logado) -->
     <div id="mainAppContainer" class="hidden">
       <header class="main-header">
-        <div class="logo">Quatro em Linha</div>
+        <div class="logo">3 em Linha</div>
         <div id="userInfo">
           <span id="welcomeMessage"></span>
           <button id="logoutBtn">Sair</button>

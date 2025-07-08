@@ -10,6 +10,9 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- Referências aos Elementos da UI ---
   const elements = {
     authContainer: document.getElementById("authContainer"),
+    // NOVO: Referências específicas para os wrappers dos formulários
+    registerWrapper: document.getElementById("registerWrapper"),
+    loginWrapper: document.getElementById("loginWrapper"),
     mainAppContainer: document.getElementById("mainAppContainer"),
     lobby: document.getElementById("lobby"),
     gameScreen: document.getElementById("gameScreen"),
@@ -35,6 +38,24 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let turnCountdownInterval = null;
   let rematchCountdownInterval = null;
+
+  // =============================================
+  // --- FUNÇÃO PARA CONTROLAR A VISÃO DE AUTH ---
+  // =============================================
+  function handleAuthView() {
+    // Se o usuário está logado, não faz nada
+    if (state.currentUser) return;
+
+    // Pega a hash da URL (ex: #login). Se não houver, assume #login como padrão.
+    const hash = window.location.hash || "#login";
+
+    if (elements.registerWrapper && elements.loginWrapper) {
+      // Mostra o formulário de registro apenas se a hash for #register
+      elements.registerWrapper.classList.toggle("hidden", hash !== "#register");
+      // Mostra o formulário de login apenas se a hash for #login
+      elements.loginWrapper.classList.toggle("hidden", hash !== "#login");
+    }
+  }
 
   // =============================================
   // --- FUNÇÃO CENTRAL DE RENDERIZAÇÃO ---
@@ -77,6 +98,8 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     } else {
       stopTurnCountdown();
+      // ATUALIZADO: Garante que a visão de auth correta seja exibida ao renderizar
+      handleAuthView();
     }
   }
 
@@ -538,6 +561,9 @@ document.addEventListener("DOMContentLoaded", () => {
       state.socket.send(JSON.stringify({ type: "LEAVE_ROOM" }));
     }
   });
+
+  // NOVO: Adiciona um listener para o evento de mudança de hash na URL
+  window.addEventListener("hashchange", handleAuthView);
 
   initializeApp();
 });
