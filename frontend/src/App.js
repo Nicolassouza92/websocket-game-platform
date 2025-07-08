@@ -26,8 +26,15 @@ document.addEventListener("DOMContentLoaded", () => {
     chatForm: document.getElementById("chat-form"),
     chatInput: document.getElementById("chat-input"),
     chatMessages: document.getElementById("chat-messages"),
+    rematchContainer: document.getElementById("rematch-container"),
+    rematchStatus: document.getElementById("rematch-status"),
+    rematchAcceptBtn: document.getElementById("rematch-accept-btn"),
+    rematchDeclineBtn: document.getElementById("rematch-decline-btn"),
     leaveRoomBtn: document.getElementById("leaveRoomBtn"),
   };
+
+  let turnCountdownInterval = null;
+  let rematchCountdownInterval = null;
 
   // =============================================
   // --- FUNÇÃO CENTRAL DE RENDERIZAÇÃO ---
@@ -44,17 +51,75 @@ document.addEventListener("DOMContentLoaded", () => {
       const isInGame = !!currentRoom;
       elements.lobby.classList.toggle("hidden", isInGame);
       elements.gameScreen.classList.toggle("hidden", !isInGame);
-
       elements.leaveRoomBtn.classList.toggle("hidden", !isInGame);
 
       if (isInGame) {
         renderGameInfo(currentRoom);
         renderPlayerList(currentRoom.players);
         renderBoard(currentRoom.board);
+
+        if (currentRoom.status === 'playing') {
+          startTurnCountdown();
+        } else {
+          stopTurnCountdown();
+        }
+
+        // NOVO: UI de "Jogar Novamente"
+        if (currentRoom.status === 'finished') {
+          renderRematchUI(currentRoom);
+        } else {
+          elements.rematchContainer.classList.add("hidden");
+          stopRematchCountdown();
+        }
       } else {
+        stopTurnCountdown();
+        stopRematchCountdown();
         renderRoomList(availableRooms);
       }
+    } else {
+      stopTurnCountdown(); // Para o cronômetro ao fazer logout
     }
+  }
+
+  // --- NOVAS FUNÇÕES AUXILIARES PARA O CRONÔMETRO ---
+  function stopTurnCountdown() {
+    if (turnCountdownInterval) {
+      clearInterval(turnCountdownInterval);
+      turnCountdownInterval = null;
+    }
+  }
+
+  function startTurnCountdown() {
+    // Se o cronômetro já estiver rodando, não faz nada
+    if (turnCountdownInterval) return;
+
+    turnCountdownInterval = setInterval(() => {
+      // A cada segundo, apenas renderiza novamente a barra de informações do jogo
+      if (state.currentRoom) {
+        renderGameInfo(state.currentRoom);
+      } else {
+        // Medida de segurança: se a sala sumir, para o cronômetro
+        stopTurnCountdown();
+      }
+    }, 1000); // Atualiza a cada 1 segundo
+  }
+
+  function stopRematchCountdown() {
+    if (rematchCountdownInterval) {
+      clearInterval(rematchCountdownInterval);
+      rematchCountdownInterval = null;
+    }
+  }
+
+  function startRematchCountdown() {
+    if (rematchCountdownInterval) return;
+    rematchCountdownInterval = setInterval(() => {
+      if (state.currentRoom) {
+        renderRematchUI(state.currentRoom);
+      } else {
+        stopRematchCountdown();
+      }
+    }, 1000);
   }
 
   // =============================================
@@ -80,24 +145,42 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function renderGameInfo(roomState) {
     if (!elements.gameInfo) return;
+    elements.gameInfo.classList.toggle('hidden', roomState.status === 'finished');
+
     if (roomState.status === "waiting") {
       elements.gameInfo.textContent = `Aguardando jogadores... (${roomState.players.length}/3)`;
     } else if (roomState.status === "playing") {
       const currentPlayer = roomState.players[roomState.currentPlayerIndex];
-      if (
+      const isMyTurn =
         state.currentUser &&
         currentPlayer &&
-        currentPlayer.id === state.currentUser.userId
-      ) {
-        elements.gameInfo.textContent = "É a sua vez!";
+        currentPlayer.id === state.currentUser.userId;
+
+      // --- LÓGICA DE EXIBIÇÃO DO CRONÔMETRO ---
+      let timerText = "";
+      if (roomState.turnEndsAt) {
+        // Calcula os segundos restantes, garantindo que não seja negativo
+        const timeLeft = Math.max(0, Math.round((roomState.turnEndsAt - Date.now()) / 1000));
+        // Formata para sempre ter dois dígitos (ex: 09, 08...)
+        const seconds = String(timeLeft).padStart(2, '0');
+        timerText = ` (Tempo: ${seconds}s)`;
+      }
+
+      if (isMyTurn) {
+        elements.gameInfo.textContent = `É a sua vez!${timerText}`;
       } else if (currentPlayer) {
-        elements.gameInfo.textContent = `Aguardando a jogada de ${currentPlayer.username}...`;
+        elements.gameInfo.textContent = `Aguardando a jogada de ${currentPlayer.username}...${timerText}`;
       }
     } else if (roomState.status === "finished") {
+      stopTurnCountdown();
       const winner = roomState.players.find((p) => p.id === roomState.winner);
-      elements.gameInfo.textContent = winner
-        ? `O vencedor é ${winner.username}!`
-        : "O jogo empatou!";
+      let finishMessage;
+      if (winner) {
+        finishMessage = `O vencedor é ${winner.username}!`;
+      } else if (roomState.winner === null) {
+        finishMessage = "O jogo terminou em empate!";
+      }
+      elements.rematchStatus.textContent = finishMessage;
     }
   }
 
@@ -252,9 +335,10 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   elements.leaveRoomBtn.addEventListener("click", () => {
-    if (state.socket) {
-      console.log("Saindo da sala...");
-      state.socket.close(); // Apenas fechar o socket é o suficiente
+    // MODIFICAÇÃO: Envia uma mensagem explícita ao servidor para sair da sala
+    if (state.socket && state.socket.readyState === WebSocket.OPEN) {
+      console.log("Enviando pedido para sair da sala...");
+      state.socket.send(JSON.stringify({ type: "LEAVE_ROOM" }));
     }
   });
 
@@ -342,14 +426,22 @@ document.addEventListener("DOMContentLoaded", () => {
         case "PLAYER_RECONNECTED":
         case "PLAYER_STATUS_UPDATE":
           state.currentRoom = payload.gameState;
+          // NOVO: Mostra snackbar se voltar para waiting e não estiver cheia
+          if (payload.gameState.status === 'waiting' && state.currentRoom.players.length < 3) {
+            showSnackbar("Aguardando mais jogadores para continuar.", "info");
+          }
           render();
           break;
         case "NEW_MESSAGE":
           displayChatMessage(payload.username, payload.text);
           break;
         case "ROOM_CLOSED":
-          payload.message;
-          state.socket?.close(); // Aciona o onclose, que limpa o estado e renderiza o lobby
+          // NOVO: Exibe a mensagem do servidor antes de fechar.
+          showSnackbar(payload.message, "error", 5000);
+          // O servidor forçará o fechamento da conexão, o que acionará o onclose.
+          break;
+        case "INFO_MESSAGE":
+          showSnackbar(payload.message, "info", 5000);
           break;
         default:
           console.warn(`Tipo de mensagem não tratada: ${type}`);
@@ -358,12 +450,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
     state.socket.onclose = () => {
       console.log("A conexão com a sala foi fechada.");
-      showSnackbar("A conexão com a sala foi fechada.");
+      showSnackbar("Retornando ao lobby.");
       state.socket = null;
       state.currentRoom = null;
-      sessionStorage.removeItem("currentRoomCode"); // Limpa a memória
-      render(); // Volta para a tela de lobby
-      fetchRooms(); // **ATUALIZA A LISTA DE SALAS PARA TODOS**
+      sessionStorage.removeItem("currentRoomCode");
+      render();
+      fetchRooms();
     };
   }
 
@@ -406,6 +498,32 @@ document.addEventListener("DOMContentLoaded", () => {
     }, duration);
   }
 
+  function renderRematchUI(roomState) {
+    elements.rematchContainer.classList.remove("hidden");
+    startRematchCountdown();
+
+    const { rematchVotes, rematchVoteEndsAt, players } = roomState;
+    const myVote = rematchVotes.includes(state.currentUser.userId);
+
+    let timerText = "";
+    if (rematchVoteEndsAt) {
+      const timeLeft = Math.max(0, Math.round((rematchVoteEndsAt - Date.now()) / 1000));
+      timerText = `Tempo para votar: ${String(timeLeft).padStart(2, '0')}s`;
+    }
+
+    const votesCount = rematchVotes.length;
+    const totalPlayers = players.length;
+    elements.rematchStatus.textContent = `${timerText}  |  Votos: ${votesCount}/${totalPlayers}`;
+
+    elements.rematchAcceptBtn.disabled = myVote;
+    elements.rematchDeclineBtn.disabled = myVote;
+    if (myVote) {
+      elements.rematchAcceptBtn.textContent = "Aguardando outros...";
+    } else {
+      elements.rematchAcceptBtn.textContent = "Jogar Novamente";
+    }
+  }
+
   async function initializeApp() {
     try {
       const data = await apiRequest("/auth/status");
@@ -433,6 +551,18 @@ document.addEventListener("DOMContentLoaded", () => {
       render();
     }
   }
+
+  elements.rematchAcceptBtn.addEventListener("click", () => {
+    if (state.socket) {
+      state.socket.send(JSON.stringify({ type: "VOTE_REMATCH" }));
+    }
+  });
+
+  elements.rematchDeclineBtn.addEventListener("click", () => {
+    if (state.socket) {
+      state.socket.send(JSON.stringify({ type: "LEAVE_ROOM" }));
+    }
+  });
 
   initializeApp();
 });

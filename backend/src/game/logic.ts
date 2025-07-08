@@ -44,7 +44,9 @@ export function makeMove(
 
   const winner = checkWin(newBoard, playerId) ? playerId : null;
   
-  // A ordem dos jogadores é mantida, apenas o índice do turno avança
+  // MODIFICAÇÃO: Verifica o empate
+  const isDraw = !winner && newBoard[0].every(cell => cell !== null);
+  
   const nextPlayerIndex =
     (currentState.currentPlayerIndex + 1) % currentState.playerOrder.length;
 
@@ -52,8 +54,10 @@ export function makeMove(
     ...currentState,
     board: newBoard,
     currentPlayerIndex: nextPlayerIndex,
-    status: winner ? "finished" : "playing",
-    winner: winner ?? undefined,
+    // MODIFICAÇÃO: Atualiza o status se houver vencedor ou empate
+    status: winner || isDraw ? "finished" : "playing",
+    // MODIFICAÇÃO: Define o vencedor ou `null` para empate
+    winner: winner ?? (isDraw ? null : undefined),
   };
 }
 
