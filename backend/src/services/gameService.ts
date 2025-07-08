@@ -153,12 +153,15 @@ function startTurnTimer(room: GameState) {
     const inactivePlayerState = roomNow.players.get(inactivePlayerId);
 
     if (inactivePlayerState) {
-      // Apenas penaliza se o jogador estiver online
+      // <<< MUDANÇA AQUI >>>
+      // Apenas penaliza o jogador por inatividade se ele estiver ONLINE (ws não é nulo).
+      // Se estiver offline, o turno dele é simplesmente pulado, e o timer de reconexão continua valendo.
       if (inactivePlayerState.ws !== null) {
         inactivePlayerState.inactiveTurns++;
         console.log(
           `[GameService] Turno esgotado para ${inactivePlayerState.username}. Strikes: ${inactivePlayerState.inactiveTurns}/${MAX_INACTIVE_TURNS}`
         );
+
         // REGRA DE REMOÇÃO POR INATIVIDADE
         if (inactivePlayerState.inactiveTurns >= MAX_INACTIVE_TURNS) {
           broadcastToRoom(room.roomCode, {
@@ -172,14 +175,19 @@ function startTurnTimer(room: GameState) {
             room.roomCode,
             inactivePlayerState.id
           );
-          return;
+          return; // Termina a execução para não passar o turno de uma sala que pode ter mudado
         }
+      } else {
+        console.log(
+          `[GameService] Pulando turno do jogador desconectado ${inactivePlayerState.username} sem penalidade.`
+        );
       }
     }
 
+    // Avança para o próximo jogador, independentemente de ele estar online ou não.
     roomNow.currentPlayerIndex =
       (roomNow.currentPlayerIndex + 1) % roomNow.playerOrder.length;
-    startTurnTimer(roomNow);
+    startTurnTimer(roomNow); // Inicia o timer para o próximo jogador
     broadcastRoomState(roomNow);
   }, TURN_DURATION_MS);
 
