@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Quatro em Linha - Multiplayer</title>
+    <!-- Adicione o link para o seu arquivo de estilos -->
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <!-- Container para a tela de autenticação (aparece quando deslogado) -->
+    <div id="authContainer">
+      <div class="form-wrapper">
+        <h2>Registro</h2>
+        <form id="registerForm">
+          <input type="text" name="username" placeholder="Usuário" required />
+          <input type="password" name="password" placeholder="Senha" required />
+          <button type="submit">Registrar</button>
+        </form>
+      </div>
+      <div class="form-wrapper">
+        <h2>Login</h2>
+        <form id="loginForm">
+          <input type="text" name="username" placeholder="Usuário" required />
+          <input type="password" name="password" placeholder="Senha" required />
+          <button type="submit">Login</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Container principal da aplicação (aparece quando logado) -->
+    <div id="mainAppContainer" class="hidden">
+      <header class="main-header">
+        <div class="logo">Quatro em Linha</div>
+        <div id="userInfo">
+          <span id="welcomeMessage"></span>
+          <button id="logoutBtn">Sair</button>
+        </div>
+      </header>
+
+      <!-- Seção do Lobby (mostrada quando logado e fora de uma sala) -->
+      <div id="lobby">
+        <h2>Lobby</h2>
+        <div class="lobby-actions">
+          <button id="createRoomBtn">Criar Nova Sala</button>
+          <button id="refreshRoomsBtn">Atualizar Lista</button>
+        </div>
+        <h3>Salas Disponíveis</h3>
+        <div id="roomList">Carregando...</div>
+      </div>
+
+      <!-- Seção do Jogo (mostrada quando dentro de uma sala) -->
+      <div id="gameScreen" class="hidden">
+        <!-- Este é o novo container que organiza o jogo e o chat lado a lado -->
+        <div class="game-layout">
+          <!-- Coluna da Esquerda: O Jogo -->
+          <main class="game-content">
+            <div id="game-board-container">
+              <div id="board">
+                <!-- Células geradas via JS -->
+              </div>
+            </div>
+            <div id="game-info" class="game-status-bar"></div>
+
+            <!-- NOVO: Container para a votação de "Jogar Novamente" -->
+            <div id="rematch-container" class="game-status-bar hidden">
+              <p id="rematch-status"></p>
+              <div id="rematch-actions">
+                <button id="rematch-accept-btn">Jogar Novamente</button>
+                <button
+                  id="rematch-decline-btn"
+                  style="background-color: var(--error-color)"
+                >
+                  Sair para o Lobby
+                </button>
+              </div>
+            </div>
+          </main>
+
+          <!-- Coluna da Direita: Chat e Jogadores -->
+          <aside class="sidebar">
+            <div class="players-list">
+              <div class="players-list-header">
+                <h3>Jogadores</h3>
+                <button id="leaveRoomBtn" class="hidden">Sair da sala</button>
+              </div>
+              <div id="player-list-content">
+                <!-- Lista de jogadores e placar gerada via JS -->
+              </div>
+            </div>
+            <div class="chat-container">
+              <h3>Chat da Sala</h3>
+              <div id="chat-messages">
+                <!-- Mensagens geradas via JS -->
+              </div>
+              <form id="chat-form">
+                <input
+                  type="text"
+                  id="chat-input"
+                  placeholder="Digite sua mensagem..."
+                  autocomplete="off"
+                  required
+                />
+                <button type="submit" title="Enviar"><span>→</span></button>
+              </form>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+
+    <div id="snackbar-container"></div>
+
+    <!-- O script principal da aplicação -->
+    <script src="App.js"></script>
+  </body>
+</html>

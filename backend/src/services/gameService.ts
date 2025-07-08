@@ -8,6 +8,7 @@ import {
   GameStateForClient,
 } from "../game/state";
 import { makeMove } from "../game/logic";
+import Match from "../models/matchModel"; // Importar o novo model
 
 const rooms = new Map<string, GameState>();
 const clientToRoomMap = new Map<
@@ -186,12 +187,18 @@ function attachMessageHandlers(
   roomCode: string,
   player: Player
 ) {
-  ws.on("message", (message: string) => {
+  ws.on("message", async (message: string) => {
+    // Tornar async
     try {
       const parsedMessage = JSON.parse(message);
       switch (parsedMessage.type) {
         case "MAKE_MOVE":
-          handleMakeMove(ws, roomCode, player.id, parsedMessage.payload.column);
+          await handleMakeMove(
+            ws,
+            roomCode,
+            player.id,
+            parsedMessage.payload.column
+          ); // Adicionar await
           break;
         case "LEAVE_ROOM":
           handlePlayerLeave(ws, roomCode, player.id);
@@ -343,7 +350,7 @@ function handlePlayerDisconnection(ws: WebSocket) {
   reconnectionTimers.set(playerId, timeout);
 }
 
-function handleMakeMove(
+async function handleMakeMove( // Tornar async
   ws: WebSocket,
   roomCode: string,
   playerId: PlayerId,
@@ -362,6 +369,20 @@ function handleMakeMove(
     if (newState.status === "finished") {
       clearTurnTimer(roomCode);
       delete newState.turnEndsAt;
+      // ### NOVO: GRAVAR PARTIDA FINALIZADA ###
+      try {
+        // playerOrderHistory tem a lista de todos que iniciaram a partida
+        await Match.record(
+          newState.winner ?? null,
+          newState.playerOrderHistory
+        );
+      } catch (dbError) {
+        console.error(
+          `[GameService] Falha ao gravar a partida ${roomCode} no banco de dados:`,
+          dbError
+        );
+        // O jogo continua mesmo se o DB falhar
+      }
       startRematchVotePhase(newState);
     } else {
       startTurnTimer(newState);
