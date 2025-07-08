@@ -153,25 +153,27 @@ function startTurnTimer(room: GameState) {
     const inactivePlayerState = roomNow.players.get(inactivePlayerId);
 
     if (inactivePlayerState) {
-      inactivePlayerState.inactiveTurns++;
-      console.log(
-        `[GameService] Turno esgotado para ${inactivePlayerState.username}. Strikes: ${inactivePlayerState.inactiveTurns}/${MAX_INACTIVE_TURNS}`
-      );
-
-      // REGRA DE REMOÇÃO POR INATIVIDADE
-      if (inactivePlayerState.inactiveTurns >= MAX_INACTIVE_TURNS) {
-        broadcastToRoom(room.roomCode, {
-          type: "INFO_MESSAGE",
-          payload: {
-            message: `${inactivePlayerState.username} foi removido por inatividade.`,
-          },
-        });
-        handlePlayerLeave(
-          inactivePlayerState.ws,
-          room.roomCode,
-          inactivePlayerState.id
+      // Apenas penaliza se o jogador estiver online
+      if (inactivePlayerState.ws !== null) {
+        inactivePlayerState.inactiveTurns++;
+        console.log(
+          `[GameService] Turno esgotado para ${inactivePlayerState.username}. Strikes: ${inactivePlayerState.inactiveTurns}/${MAX_INACTIVE_TURNS}`
         );
-        return;
+        // REGRA DE REMOÇÃO POR INATIVIDADE
+        if (inactivePlayerState.inactiveTurns >= MAX_INACTIVE_TURNS) {
+          broadcastToRoom(room.roomCode, {
+            type: "INFO_MESSAGE",
+            payload: {
+              message: `${inactivePlayerState.username} foi removido por inatividade.`,
+            },
+          });
+          handlePlayerLeave(
+            inactivePlayerState.ws,
+            room.roomCode,
+            inactivePlayerState.id
+          );
+          return;
+        }
       }
     }
 
@@ -185,7 +187,6 @@ function startTurnTimer(room: GameState) {
 }
 
 // --- Funções Internas Modificadas ---
-// ... (attachMessageHandlers permanece igual)
 function attachMessageHandlers(
   ws: WebSocket,
   roomCode: string,
@@ -252,7 +253,6 @@ function handlePlayerLeave(
     `[GameService] Jogador ${leavingPlayer.username} está saindo/sendo removido da sala ${roomCode}.`
   );
 
-  // MUDANÇA 1: Se o host sai, a sala fecha, INDEPENDENTE do status.
   if (playerId === room.hostId) {
     console.log(
       `[GameService] Host (${leavingPlayer.username}) saiu. Fechando a sala ${roomCode}.`
@@ -263,31 +263,26 @@ function handlePlayerLeave(
         message: `O host (${leavingPlayer.username}) encerrou a sala.`,
       },
     });
-    // Fecha a conexão de todos os outros jogadores
     room.players.forEach((p) => {
       if (p.id !== playerId && p.ws && p.ws.readyState === WebSocket.OPEN) {
         p.ws.close();
       }
     });
-    // Limpa timers e remove a sala
     clearTurnTimer(roomCode);
     clearRematchTimer(roomCode);
     rooms.delete(roomCode);
-    // Fecha a conexão do host que saiu
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.close();
     }
-    return; // A função termina aqui, a sala não existe mais.
+    return;
   }
 
-  // Se não for o host, remove o jogador da sala
   room.players.delete(playerId);
   room.playerOrder = room.playerOrder.filter((id) => id !== playerId);
   if (ws) {
     clientToRoomMap.delete(ws);
   }
 
-  // MUDANÇA 2: Se a sala ficou vazia após a saída de um jogador não-host.
   if (room.players.size === 0) {
     console.log(`[GameService] Sala ${roomCode} ficou vazia. Removendo.`);
     clearTurnTimer(roomCode);
@@ -296,46 +291,31 @@ function handlePlayerLeave(
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.close();
     }
-    return; // A função termina aqui.
+    return;
   }
 
-  // Lógica restante para quando a sala ainda tem jogadores...
-  if (room.status === "playing" && room.players.size === 2) {
+  if (room.status === "playing" && room.players.size < 2) {
+    console.log(
+      `[GameService] Apenas 1 jogador restou. Sala ${roomCode} voltando para o estado de espera.`
+    );
+    resetRoomToWaiting(room);
+  } else if (room.status === "playing") {
     console.log(
       `[GameService] Restam 2 jogadores na sala ${roomCode}. O jogo continua.`
     );
-    room.currentPlayerIndex %= room.playerOrder.length; // Garante que o index seja válido
+    room.currentPlayerIndex %= room.playerOrder.length;
     broadcastToRoom(roomCode, {
       type: "INFO_MESSAGE",
       payload: {
         message: `${leavingPlayer.username} saiu. O jogo continua entre os 2 restantes.`,
       },
     });
-    startTurnTimer(room); // Reinicia o timer para o jogador atual
-    broadcastRoomState(room);
-  } else if (room.status === "playing" && room.players.size < 2) {
-    console.log(
-      `[GameService] Apenas 1 jogador restou. Sala ${roomCode} voltando para o estado de espera.`
-    );
-    room.status = "waiting";
-    const newHost = Array.from(room.players.values())[0];
-    if (newHost) {
-      room.hostId = newHost.id;
-    }
-    room.board = Array(9)
-      .fill(null)
-      .map(() => Array(10).fill(null));
-    room.currentPlayerIndex = 0;
-    delete room.winner;
-    delete room.turnEndsAt;
-    clearTurnTimer(roomCode);
+    startTurnTimer(room);
     broadcastRoomState(room);
   } else {
-    // Caso padrão (ex: jogador sai enquanto estava em 'waiting' ou 'finished')
     broadcastRoomState(room);
   }
 
-  // Fecha a conexão do jogador que saiu
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.close();
   }
@@ -348,10 +328,7 @@ function handlePlayerDisconnection(ws: WebSocket) {
   const room = rooms.get(roomCode);
   if (!room) return;
   const disconnectedPlayer = room.players.get(playerId);
-  if (!disconnectedPlayer) return;
-
-  // Se o jogador já foi removido por 'handlePlayerLeave', não faz nada.
-  if (!room.players.has(playerId)) return;
+  if (!disconnectedPlayer || !room.players.has(playerId)) return;
 
   console.log(
     `[GameService] Jogador ${disconnectedPlayer.username} desconectou. Iniciando timer de remoção.`
@@ -390,7 +367,6 @@ function handleMakeMove(
 ) {
   const room = rooms.get(roomCode);
   if (!room) return;
-
   const playerState = room.players.get(playerId);
   if (!playerState) return;
 
@@ -402,7 +378,6 @@ function handleMakeMove(
     if (newState.status === "finished") {
       clearTurnTimer(roomCode);
       delete newState.turnEndsAt;
-      // NOVO: Inicia a fase de votação
       startRematchVotePhase(newState);
     } else {
       startTurnTimer(newState);
@@ -424,30 +399,33 @@ function startRematchVotePhase(room: GameState) {
   room.rematchVotes = [];
 
   const timer = setTimeout(() => {
-    processRematchVotes(room.roomCode);
+    const currentRoom = rooms.get(room.roomCode);
+    if (currentRoom) {
+      processRematchVotes(currentRoom);
+    }
   }, REMATCH_VOTE_DURATION_MS);
 
   rematchTimers.set(room.roomCode, timer);
 }
 
-function processRematchVotes(roomCode: string) {
-  const room = rooms.get(roomCode);
-  if (!room) return;
-
+/**
+ * Função ajustada para lidar com todos os cenários de votação.
+ */
+function processRematchVotes(room: GameState) {
+  const roomCode = room.roomCode;
   console.log(`[GameService] Votação encerrada na sala ${roomCode}.`);
-  rematchTimers.delete(roomCode);
+  clearRematchTimer(roomCode);
 
   const playersWhoVoted = new Set(room.rematchVotes);
   const playersToRemove: PlayerState[] = [];
 
-  // Identifica quem não votou
+  // Identifica e remove jogadores que não votaram
   room.players.forEach((player) => {
     if (!playersWhoVoted.has(player.id)) {
       playersToRemove.push(player);
     }
   });
 
-  // Remove os jogadores que não votaram
   if (playersToRemove.length > 0) {
     playersToRemove.forEach((player) => {
       broadcastToRoom(roomCode, {
@@ -460,11 +438,54 @@ function processRematchVotes(roomCode: string) {
     });
   }
 
-  // Se, após as remoções, todos os jogadores restantes votaram sim, reinicia o jogo.
-  const remainingPlayers = room.players.size;
-  if (remainingPlayers > 1 && playersWhoVoted.size === remainingPlayers) {
-    resetGameForRematch(room);
+  // Busca o estado mais atual da sala, pois ela pode ter sido modificada
+  const finalRoomState = rooms.get(roomCode);
+  if (!finalRoomState) {
+    console.log(
+      `[GameService] Sala ${roomCode} não existe mais após a votação.`
+    );
+    return; // A sala foi fechada (provavelmente o host saiu)
   }
+
+  const remainingPlayersCount = finalRoomState.players.size;
+  const allRemainingVoted = Array.from(finalRoomState.players.keys()).every(
+    (id) => playersWhoVoted.has(id)
+  );
+
+  // Ação baseada em quantos jogadores votaram "sim"
+  if (allRemainingVoted) {
+    if (remainingPlayersCount === 3) {
+      // 3 votaram sim -> Reinicia o jogo
+      resetGameForRematch(finalRoomState);
+    } else if (remainingPlayersCount >= 1) {
+      // 1 ou 2 votaram sim -> Volta para a sala de espera
+      resetRoomToWaiting(finalRoomState);
+    }
+    // Se for 0, a sala já foi deletada, então não faz nada.
+  }
+}
+
+function resetRoomToWaiting(room: GameState) {
+  console.log(
+    `[GameService] Sala ${room.roomCode} voltando para o estado de espera com ${room.players.size} jogador(es).`
+  );
+  room.status = "waiting";
+  room.board = Array(9)
+    .fill(null)
+    .map(() => Array(10).fill(null));
+  room.currentPlayerIndex = 0;
+  delete room.winner;
+  room.rematchVotes = [];
+  delete room.rematchVoteEndsAt;
+  room.players.forEach((p) => (p.inactiveTurns = 0));
+
+  // Garante que o host seja o primeiro jogador na ordem, se ele ainda estiver na sala
+  if (room.players.size > 0 && !room.players.has(room.hostId)) {
+    room.hostId = room.playerOrder[0];
+  }
+
+  clearTurnTimer(room.roomCode);
+  broadcastRoomState(room);
 }
 
 function resetGameForRematch(room: GameState) {
@@ -505,11 +526,10 @@ function handleRematchVote(
   room.rematchVotes.push(playerId);
   broadcastRoomState(room);
 
-  // Se todos os jogadores atuais votaram, não espera o timer.
+  // Se todos os jogadores presentes votaram, processa imediatamente
   if (room.rematchVotes.length === room.players.size) {
-    const timer = rematchTimers.get(roomCode);
-    if (timer) clearTimeout(timer);
-    processRematchVotes(roomCode);
+    clearRematchTimer(roomCode);
+    processRematchVotes(room);
   }
 }
 
