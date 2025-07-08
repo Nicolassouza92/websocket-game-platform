@@ -58,14 +58,14 @@ document.addEventListener("DOMContentLoaded", () => {
         renderPlayerList(currentRoom.players);
         renderBoard(currentRoom.board);
 
-        if (currentRoom.status === 'playing') {
+        if (currentRoom.status === "playing") {
           startTurnCountdown();
         } else {
           stopTurnCountdown();
         }
 
         // NOVO: UI de "Jogar Novamente"
-        if (currentRoom.status === 'finished') {
+        if (currentRoom.status === "finished") {
           renderRematchUI(currentRoom);
         } else {
           elements.rematchContainer.classList.add("hidden");
@@ -145,7 +145,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function renderGameInfo(roomState) {
     if (!elements.gameInfo) return;
-    elements.gameInfo.classList.toggle('hidden', roomState.status === 'finished');
+    elements.gameInfo.classList.toggle(
+      "hidden",
+      roomState.status === "finished"
+    );
 
     if (roomState.status === "waiting") {
       elements.gameInfo.textContent = `Aguardando jogadores... (${roomState.players.length}/3)`;
@@ -160,9 +163,12 @@ document.addEventListener("DOMContentLoaded", () => {
       let timerText = "";
       if (roomState.turnEndsAt) {
         // Calcula os segundos restantes, garantindo que não seja negativo
-        const timeLeft = Math.max(0, Math.round((roomState.turnEndsAt - Date.now()) / 1000));
+        const timeLeft = Math.max(
+          0,
+          Math.round((roomState.turnEndsAt - Date.now()) / 1000)
+        );
         // Formata para sempre ter dois dígitos (ex: 09, 08...)
-        const seconds = String(timeLeft).padStart(2, '0');
+        const seconds = String(timeLeft).padStart(2, "0");
         timerText = ` (Tempo: ${seconds}s)`;
       }
 
@@ -399,6 +405,10 @@ document.addEventListener("DOMContentLoaded", () => {
   function connectToGame(roomCode) {
     if (state.socket) state.socket.close();
 
+    if (elements.chatMessages) {
+      elements.chatMessages.innerHTML = "";
+    }
+
     sessionStorage.setItem("currentRoomCode", roomCode);
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -427,7 +437,10 @@ document.addEventListener("DOMContentLoaded", () => {
         case "PLAYER_STATUS_UPDATE":
           state.currentRoom = payload.gameState;
           // NOVO: Mostra snackbar se voltar para waiting e não estiver cheia
-          if (payload.gameState.status === 'waiting' && state.currentRoom.players.length < 3) {
+          if (
+            payload.gameState.status === "waiting" &&
+            state.currentRoom.players.length < 3
+          ) {
             showSnackbar("Aguardando mais jogadores para continuar.", "info");
           }
           render();
@@ -507,8 +520,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     let timerText = "";
     if (rematchVoteEndsAt) {
-      const timeLeft = Math.max(0, Math.round((rematchVoteEndsAt - Date.now()) / 1000));
-      timerText = `Tempo para votar: ${String(timeLeft).padStart(2, '0')}s`;
+      const timeLeft = Math.max(
+        0,
+        Math.round((rematchVoteEndsAt - Date.now()) / 1000)
+      );
+      timerText = `Tempo para votar: ${String(timeLeft).padStart(2, "0")}s`;
     }
 
     const votesCount = rematchVotes.length;
