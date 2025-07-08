@@ -15,7 +15,9 @@ export interface PlayerState extends Player {
   inactiveTurns: number; // NOVO: Contador de turnos inativos (strikes)
 }
 
-export interface PlayerInfoForClient extends Player {
+export interface PlayerInfoForClient {
+  id: PlayerId;
+  username: string;
   isOnline: boolean;
 }
 
@@ -24,15 +26,14 @@ export interface GameState {
   hostId: PlayerId;
   players: Map<PlayerId, PlayerState>;
   playerOrder: PlayerId[];
+  playerOrderHistory: PlayerId[]; // Histórico imutável da ordem dos jogadores da partida
   currentPlayerIndex: number;
   board: Board;
   status: "waiting" | "playing" | "finished";
   winner?: PlayerId | null;
   turnEndsAt?: number;
-
-  // NOVOS CAMPOS PARA "JOGAR NOVAMENTE"
-  rematchVotes: PlayerId[]; // Lista de IDs de jogadores que votaram sim
-  rematchVoteEndsAt?: number; // Timestamp de quando a votação termina
+  rematchVotes: PlayerId[];
+  rematchVoteEndsAt?: number;
 }
 
 export interface GameStateForClient {
@@ -41,12 +42,11 @@ export interface GameStateForClient {
   players: PlayerInfoForClient[];
   board: Board;
   playerOrder: PlayerId[];
+  playerOrderHistory: PlayerId[]; // Envia o histórico para o cliente
   currentPlayerIndex: number;
   status: "waiting" | "playing" | "finished";
   winner?: PlayerId | null;
   turnEndsAt?: number;
-
-  // NOVOS CAMPOS PARA O CLIENTE
   rematchVotes: PlayerId[];
   rematchVoteEndsAt?: number;
 }

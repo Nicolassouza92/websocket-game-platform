@@ -1,120 +1,114 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Quatro em Linha - Multiplayer</title>
-    <!-- Adicione o link para o seu arquivo de estilos -->
-    <link rel="stylesheet" href="style.css" />
+    <title>3 em Linha - Bem-vindo!</title>
+    <link rel="stylesheet" href="index.css" />
   </head>
   <body>
-    <!-- Container para a tela de autenticação (aparece quando deslogado) -->
-    <div id="authContainer">
-      <div class="form-wrapper">
-        <h2>Registro</h2>
-        <form id="registerForm">
-          <input type="text" name="username" placeholder="Usuário" required />
-          <input type="password" name="password" placeholder="Senha" required />
-          <button type="submit">Registrar</button>
-        </form>
+    <header class="header">
+      <div class="logo">3 em Linha</div>
+      <nav class="nav-links">
+        <a href="how-to-play.html">Entenda o Jogo</a>
+        <!-- ATUALIZADO: Adicionado #register e #login -->
+        <a href="app.html#register">Registro</a>
+        <a href="app.html#login">Login</a>
+      </nav>
+    </header>
+
+    <div class="container">
+      <h1 class="welcome-title">Bem-vindo ao 3 em Linha para 3 Jogadores</h1>
+
+      <div class="game-board-demo">
+        <div class="demo-board">
+          <!-- Linha 1 -->
+          <div class="demo-cell"></div>
+          <div class="demo-cell"></div>
+          <div class="demo-cell"></div>
+          <div class="demo-cell"></div>
+          <div class="demo-cell"></div>
+          <div class="demo-cell"></div>
+          <div class="demo-cell"></div>
+          <!-- Linha 2 -->
+          <div class="demo-cell"></div>
+          <div class="demo-cell"></div>
+          <div class="demo-cell"></div>
+          <div class="demo-cell"></div>
+          <div class="demo-cell"></div>
+          <div class="demo-cell"></div>
+          <div class="demo-cell"></div>
+          <!-- Linha 3 -->
+          <div class="demo-cell"></div>
+          <div class="demo-cell"></div>
+          <div class="demo-cell"></div>
+          <div class="demo-cell"><div class="demo-piece player1"></div></div>
+          <div class="demo-cell"></div>
+          <div class="demo-cell"></div>
+          <div class="demo-cell"></div>
+          <!-- Linha 4 -->
+          <div class="demo-cell"></div>
+          <div class="demo-cell"></div>
+          <div class="demo-cell"><div class="demo-piece player2"></div></div>
+          <div class="demo-cell"><div class="demo-piece player1"></div></div>
+          <div class="demo-cell"><div class="demo-piece player2"></div></div>
+          <div class="demo-cell"></div>
+          <div class="demo-cell"></div>
+          <!-- Linha 5 -->
+          <div class="demo-cell"></div>
+          <div class="demo-cell"><div class="demo-piece player1"></div></div>
+          <div class="demo-cell"><div class="demo-piece player1"></div></div>
+          <div class="demo-cell"><div class="demo-piece player2"></div></div>
+          <div class="demo-cell"><div class="demo-piece player1"></div></div>
+          <div class="demo-cell"><div class="demo-piece player2"></div></div>
+          <div class="demo-cell"></div>
+          <!-- Linha 6 -->
+          <div class="demo-cell"><div class="demo-piece player2"></div></div>
+          <div class="demo-cell"><div class="demo-piece player2"></div></div>
+          <div class="demo-cell"><div class="demo-piece player2"></div></div>
+          <div class="demo-cell"><div class="demo-piece player1"></div></div>
+          <div class="demo-cell"><div class="demo-piece player2"></div></div>
+          <div class="demo-cell"><div class="demo-piece player1"></div></div>
+          <div class="demo-cell"><div class="demo-piece player1"></div></div>
+        </div>
       </div>
-      <div class="form-wrapper">
-        <h2>Login</h2>
-        <form id="loginForm">
-          <input type="text" name="username" placeholder="Usuário" required />
-          <input type="password" name="password" placeholder="Senha" required />
-          <button type="submit">Login</button>
-        </form>
+
+      <div class="section">
+        <h2 class="section-title">Histórico de Partidas Recentes</h2>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Jogadores</th>
+              <th>Vencedor</th>
+            </tr>
+          </thead>
+          <tbody id="match-history-body">
+            <tr>
+              <td colspan="3">Carregando...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="section">
+        <h2 class="section-title">Maiores Vencedores</h2>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Jogador</th>
+              <th>Vitórias</th>
+            </tr>
+          </thead>
+          <tbody id="leaderboard-body">
+            <tr>
+              <td colspan="2">Carregando...</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
 
-    <!-- Container principal da aplicação (aparece quando logado) -->
-    <div id="mainAppContainer" class="hidden">
-      <header class="main-header">
-        <div class="logo">Quatro em Linha</div>
-        <div id="userInfo">
-          <span id="welcomeMessage"></span>
-          <button id="logoutBtn">Sair</button>
-        </div>
-      </header>
-
-      <!-- Seção do Lobby (mostrada quando logado e fora de uma sala) -->
-      <div id="lobby">
-        <h2>Lobby</h2>
-        <div class="lobby-actions">
-          <button id="createRoomBtn">Criar Nova Sala</button>
-          <button id="refreshRoomsBtn">Atualizar Lista</button>
-        </div>
-        <h3>Salas Disponíveis</h3>
-        <div id="roomList">Carregando...</div>
-      </div>
-
-      <!-- Seção do Jogo (mostrada quando dentro de uma sala) -->
-      <div id="gameScreen" class="hidden">
-        <!-- Este é o novo container que organiza o jogo e o chat lado a lado -->
-        <div class="game-layout">
-          <!-- Coluna da Esquerda: O Jogo -->
-          <main class="game-content">
-            <div id="game-board-container">
-              <div id="board">
-                <!-- Células geradas via JS -->
-              </div>
-            </div>
-            <div id="game-info" class="game-status-bar"></div>
-
-            <!-- NOVO: Container para a votação de "Jogar Novamente" -->
-            <div
-              id="rematch-container"
-              class="game-status-bar hidden"
-            >
-              <p id="rematch-status"></p>
-              <div id="rematch-actions">
-                <button id="rematch-accept-btn">Jogar Novamente</button>
-                <button
-                  id="rematch-decline-btn"
-                  style="background-color: var(--error-color);"
-                >
-                  Sair para o Lobby
-                </button>
-              </div>
-            </div>
-          </main>
-
-          <!-- Coluna da Direita: Chat e Jogadores -->
-          <aside class="sidebar">
-            <div class="players-list">
-              <div class="players-list-header">
-                <h3>Jogadores</h3>
-                <button id="leaveRoomBtn" class="hidden">Sair da sala</button>
-              </div>
-              <div id="player-list-content">
-                <!-- Lista de jogadores e placar gerada via JS -->
-              </div>
-            </div>
-            <div class="chat-container">
-              <h3>Chat da Sala</h3>
-              <div id="chat-messages">
-                <!-- Mensagens geradas via JS -->
-              </div>
-              <form id="chat-form">
-                <input
-                  type="text"
-                  id="chat-input"
-                  placeholder="Digite sua mensagem..."
-                  autocomplete="off"
-                  required
-                />
-                <button type="submit" title="Enviar"><span>→</span></button>
-              </form>
-            </div>
-          </aside>
-        </div>
-      </div>
-    </div>
-
-    <div id="snackbar-container"></div>
-
-    <!-- O script principal da aplicação -->
-    <script src="app.js"></script>
+    <script src="landing.js" defer></script>
   </body>
 </html>
