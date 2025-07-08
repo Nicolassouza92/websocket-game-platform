@@ -56,7 +56,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (isInGame) {
         renderGameInfo(currentRoom);
         renderPlayerList(currentRoom.players);
-        renderBoard(currentRoom.board);
+        renderBoard(currentRoom); // Passa o objeto room inteiro
 
         if (currentRoom.status === "playing") {
           startTurnCountdown();
@@ -64,7 +64,6 @@ document.addEventListener("DOMContentLoaded", () => {
           stopTurnCountdown();
         }
 
-        // NOVO: UI de "Jogar Novamente"
         if (currentRoom.status === "finished") {
           renderRematchUI(currentRoom);
         } else {
@@ -77,40 +76,33 @@ document.addEventListener("DOMContentLoaded", () => {
         renderRoomList(availableRooms);
       }
     } else {
-      stopTurnCountdown(); // Para o cronômetro ao fazer logout
+      stopTurnCountdown();
     }
   }
 
-  // --- NOVAS FUNÇÕES AUXILIARES PARA O CRONÔMETRO ---
+  // --- Funções de timer (sem alteração) ---
   function stopTurnCountdown() {
     if (turnCountdownInterval) {
       clearInterval(turnCountdownInterval);
       turnCountdownInterval = null;
     }
   }
-
   function startTurnCountdown() {
-    // Se o cronômetro já estiver rodando, não faz nada
     if (turnCountdownInterval) return;
-
     turnCountdownInterval = setInterval(() => {
-      // A cada segundo, apenas renderiza novamente a barra de informações do jogo
       if (state.currentRoom) {
         renderGameInfo(state.currentRoom);
       } else {
-        // Medida de segurança: se a sala sumir, para o cronômetro
         stopTurnCountdown();
       }
-    }, 1000); // Atualiza a cada 1 segundo
+    }, 1000);
   }
-
   function stopRematchCountdown() {
     if (rematchCountdownInterval) {
       clearInterval(rematchCountdownInterval);
       rematchCountdownInterval = null;
     }
   }
-
   function startRematchCountdown() {
     if (rematchCountdownInterval) return;
     rematchCountdownInterval = setInterval(() => {
@@ -125,7 +117,6 @@ document.addEventListener("DOMContentLoaded", () => {
   // =============================================
   // --- FUNÇÕES AUXILIARES DE RENDERIZAÇÃO ---
   // =============================================
-
   function renderRoomList(rooms) {
     elements.roomList.innerHTML = "";
     if (!rooms || rooms.length === 0) {
@@ -153,21 +144,20 @@ document.addEventListener("DOMContentLoaded", () => {
     if (roomState.status === "waiting") {
       elements.gameInfo.textContent = `Aguardando jogadores... (${roomState.players.length}/3)`;
     } else if (roomState.status === "playing") {
-      const currentPlayer = roomState.players[roomState.currentPlayerIndex];
+      const currentPlayerId =
+        roomState.playerOrder[roomState.currentPlayerIndex];
+      const currentPlayer = roomState.players.find(
+        (p) => p.id === currentPlayerId
+      );
       const isMyTurn =
-        state.currentUser &&
-        currentPlayer &&
-        currentPlayer.id === state.currentUser.userId;
+        state.currentUser && currentPlayerId === state.currentUser.userId;
 
-      // --- LÓGICA DE EXIBIÇÃO DO CRONÔMETRO ---
       let timerText = "";
       if (roomState.turnEndsAt) {
-        // Calcula os segundos restantes, garantindo que não seja negativo
         const timeLeft = Math.max(
           0,
           Math.round((roomState.turnEndsAt - Date.now()) / 1000)
         );
-        // Formata para sempre ter dois dígitos (ex: 09, 08...)
         const seconds = String(timeLeft).padStart(2, "0");
         timerText = ` (Tempo: ${seconds}s)`;
       }
@@ -176,10 +166,17 @@ document.addEventListener("DOMContentLoaded", () => {
         elements.gameInfo.textContent = `É a sua vez!${timerText}`;
       } else if (currentPlayer) {
         elements.gameInfo.textContent = `Aguardando a jogada de ${currentPlayer.username}...${timerText}`;
+      } else {
+        // Caso o jogador atual tenha saído
+        elements.gameInfo.textContent = `Aguardando...${timerText}`;
       }
     } else if (roomState.status === "finished") {
       stopTurnCountdown();
-      const winner = roomState.players.find((p) => p.id === roomState.winner);
+      // Para encontrar o nome do vencedor, precisamos de uma lista que contenha todos os que participaram
+      const allPlayersInMatch = roomState.players.filter((p) =>
+        roomState.playerOrderHistory.includes(p.id)
+      );
+      const winner = allPlayersInMatch.find((p) => p.id === roomState.winner);
       let finishMessage;
       if (winner) {
         finishMessage = `O vencedor é ${winner.username}!`;
@@ -195,14 +192,14 @@ document.addEventListener("DOMContentLoaded", () => {
     elements.playerListContent.innerHTML = "";
     players.forEach((player) => {
       const playerEl = document.createElement("div");
-      // NOVO: Mostra o status online/offline
       const statusIcon = player.isOnline ? "🟢" : "🔴";
       playerEl.innerHTML = `${statusIcon} ${player.username}`;
       elements.playerListContent.appendChild(playerEl);
     });
   }
 
-  function renderBoard(board) {
+  function renderBoard(roomState) {
+    const { board, playerOrderHistory } = roomState;
     if (!elements.gameBoard || !board || !board[0]) return;
 
     const oldPieces = new Map();
@@ -214,6 +211,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     elements.gameBoard.innerHTML = "";
     elements.gameBoard.style.gridTemplateColumns = `repeat(${board[0].length}, 1fr)`;
+
+    const orderForColoring =
+      playerOrderHistory.length > 0
+        ? playerOrderHistory
+        : roomState.playerOrder;
 
     board.forEach((row, r) => {
       row.forEach((cellValue, c) => {
@@ -227,9 +229,8 @@ document.addEventListener("DOMContentLoaded", () => {
           const piece = document.createElement("div");
           piece.classList.add("piece");
 
-          const playerIndex = state.currentRoom.players.findIndex(
-            (p) => p.id === cellValue
-          );
+          const playerIndex = orderForColoring.indexOf(cellValue);
+
           if (playerIndex !== -1) {
             piece.classList.add(`player${playerIndex + 1}`);
           }
@@ -250,10 +251,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!elements.chatMessages || !state.currentUser) return;
     const messageWrapper = document.createElement("div");
     messageWrapper.classList.add("chat-message-wrapper");
-
     const messageBubble = document.createElement("div");
     messageBubble.classList.add("message-bubble");
-
     if (username === state.currentUser.username) {
       messageWrapper.classList.add("my-message");
       messageBubble.innerHTML = `<p class="message-content">${text}</p>`;
@@ -261,16 +260,12 @@ document.addEventListener("DOMContentLoaded", () => {
       messageWrapper.classList.add("other-message");
       messageBubble.innerHTML = `<span class="message-author">${username}</span><p class="message-content">${text}</p>`;
     }
-
     messageWrapper.appendChild(messageBubble);
     elements.chatMessages.appendChild(messageWrapper);
     elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
   }
 
-  // =============================================
-  // --- LÓGICA DE API E EVENTOS ---
-  // =============================================
-
+  // --- Lógica de API e Eventos ---
   async function apiRequest(endpoint, method = "GET", body = null) {
     try {
       const options = {
@@ -298,6 +293,7 @@ document.addEventListener("DOMContentLoaded", () => {
       username: userData.username,
     };
     await fetchRooms();
+    render();
   }
 
   elements.registerForm.addEventListener("submit", async (e) => {
@@ -328,20 +324,28 @@ document.addEventListener("DOMContentLoaded", () => {
 
   elements.logoutBtn.addEventListener("click", async () => {
     try {
+      if (state.socket && state.socket.readyState === WebSocket.OPEN) {
+        state.socket.send(JSON.stringify({ type: "LEAVE_ROOM" }));
+      }
       await apiRequest("/auth/logout", "POST");
-      if (state.socket) state.socket.close();
+      if (state.socket) {
+        state.socket.onclose = null;
+        state.socket.close();
+      }
       state.currentUser = null;
       state.currentRoom = null;
-      // *** LIMPA A MEMÓRIA DA SESSÃO NO LOGOUT ***
-      sessionStorage.removeItem("currentRoomCode");
+      localStorage.removeItem("currentRoomCode");
       render();
     } catch (error) {
-      /* Silencioso */
+      console.error("Erro no processo de logout:", error);
+      state.currentUser = null;
+      state.currentRoom = null;
+      localStorage.removeItem("currentRoomCode");
+      render();
     }
   });
 
   elements.leaveRoomBtn.addEventListener("click", () => {
-    // MODIFICAÇÃO: Envia uma mensagem explícita ao servidor para sair da sala
     if (state.socket && state.socket.readyState === WebSocket.OPEN) {
       console.log("Enviando pedido para sair da sala...");
       state.socket.send(JSON.stringify({ type: "LEAVE_ROOM" }));
@@ -362,21 +366,15 @@ document.addEventListener("DOMContentLoaded", () => {
       const rooms = await apiRequest("/rooms");
       state.availableRooms = rooms;
       render();
-    } catch (error) {
-      /* Silencioso se não estiver autenticado */
-    }
+    } catch (error) {}
   }
   elements.refreshRoomsBtn.addEventListener("click", fetchRooms);
 
   function handleColumnClick(column) {
     if (state.socket && state.currentRoom?.status === "playing") {
-      const currentPlayer =
-        state.currentRoom.players[state.currentRoom.currentPlayerIndex];
-      if (
-        currentPlayer &&
-        state.currentUser &&
-        currentPlayer.id === state.currentUser.userId
-      ) {
+      const currentPlayerId =
+        state.currentRoom.playerOrder[state.currentRoom.currentPlayerIndex];
+      if (state.currentUser && currentPlayerId === state.currentUser.userId) {
         state.socket.send(
           JSON.stringify({ type: "MAKE_MOVE", payload: { column } })
         );
@@ -404,13 +402,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function connectToGame(roomCode) {
     if (state.socket) state.socket.close();
-
-    if (elements.chatMessages) {
-      elements.chatMessages.innerHTML = "";
-    }
-
-    sessionStorage.setItem("currentRoomCode", roomCode);
-
+    localStorage.setItem("currentRoomCode", roomCode);
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const host = window.location.host;
     state.socket = new WebSocket(`${protocol}//${host}?roomCode=${roomCode}`);
@@ -418,10 +410,9 @@ document.addEventListener("DOMContentLoaded", () => {
     state.socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
       const { type, payload } = data;
-
       switch (type) {
         case "ERROR":
-          showSnackbar(`Erro do servidor: ${payload.message}`);
+          showSnackbar(`Erro do servidor: ${payload.message}`, "error");
           if (
             payload.message.includes("encontrada") ||
             payload.message.includes("cheia")
@@ -429,19 +420,14 @@ document.addEventListener("DOMContentLoaded", () => {
             state.socket?.close();
           }
           break;
-        case "GAME_START":
-        case "PLAYER_JOINED":
-        case "PLAYER_LEFT":
         case "GAME_STATE_UPDATE":
-        case "PLAYER_RECONNECTED":
-        case "PLAYER_STATUS_UPDATE":
           state.currentRoom = payload.gameState;
-          // NOVO: Mostra snackbar se voltar para waiting e não estiver cheia
           if (
             payload.gameState.status === "waiting" &&
+            state.currentRoom.players.length > 0 &&
             state.currentRoom.players.length < 3
           ) {
-            showSnackbar("Aguardando mais jogadores para continuar.", "info");
+            showSnackbar("Aguardando mais jogadores...", "info");
           }
           render();
           break;
@@ -449,9 +435,7 @@ document.addEventListener("DOMContentLoaded", () => {
           displayChatMessage(payload.username, payload.text);
           break;
         case "ROOM_CLOSED":
-          // NOVO: Exibe a mensagem do servidor antes de fechar.
           showSnackbar(payload.message, "error", 5000);
-          // O servidor forçará o fechamento da conexão, o que acionará o onclose.
           break;
         case "INFO_MESSAGE":
           showSnackbar(payload.message, "info", 5000);
@@ -466,7 +450,7 @@ document.addEventListener("DOMContentLoaded", () => {
       showSnackbar("Retornando ao lobby.");
       state.socket = null;
       state.currentRoom = null;
-      sessionStorage.removeItem("currentRoomCode");
+      localStorage.removeItem("currentRoomCode");
       render();
       fetchRooms();
     };
@@ -475,36 +459,20 @@ document.addEventListener("DOMContentLoaded", () => {
   function showSnackbar(message, type = "info", duration = 4000) {
     const container = document.getElementById("snackbar-container");
     if (!container) return;
-
-    // --- LÓGICA ANTI-ACÚMULO ---
-    // 1. Procura por qualquer snackbar que já esteja na tela.
     const existingSnackbar = container.querySelector(".snackbar");
-    // 2. Se encontrar um, remove-o imediatamente.
     if (existingSnackbar) {
       existingSnackbar.remove();
     }
-    // ----------------------------
-
-    // 3. Cria o novo snackbar (lógica que você já tem).
     const snackbar = document.createElement("div");
     snackbar.className = `snackbar ${type}`;
     snackbar.textContent = message;
-
     container.appendChild(snackbar);
-
-    // Animação de entrada
-    // Para garantir que a animação CSS execute, forçamos um "reflow"
     requestAnimationFrame(() => {
       snackbar.classList.add("show");
     });
-
-    // 4. Configura um timer para remover o novo snackbar.
     setTimeout(() => {
-      // Adiciona a classe para a animação de saída
       snackbar.classList.remove("show");
       snackbar.classList.add("hiding");
-
-      // Remove o elemento do DOM após a animação de saída terminar
       snackbar.addEventListener("animationend", () => {
         snackbar.remove();
       });
@@ -514,10 +482,8 @@ document.addEventListener("DOMContentLoaded", () => {
   function renderRematchUI(roomState) {
     elements.rematchContainer.classList.remove("hidden");
     startRematchCountdown();
-
     const { rematchVotes, rematchVoteEndsAt, players } = roomState;
     const myVote = rematchVotes.includes(state.currentUser.userId);
-
     let timerText = "";
     if (rematchVoteEndsAt) {
       const timeLeft = Math.max(
@@ -526,11 +492,9 @@ document.addEventListener("DOMContentLoaded", () => {
       );
       timerText = `Tempo para votar: ${String(timeLeft).padStart(2, "0")}s`;
     }
-
     const votesCount = rematchVotes.length;
     const totalPlayers = players.length;
     elements.rematchStatus.textContent = `${timerText}  |  Votos: ${votesCount}/${totalPlayers}`;
-
     elements.rematchAcceptBtn.disabled = myVote;
     elements.rematchDeclineBtn.disabled = myVote;
     if (myVote) {
@@ -545,16 +509,11 @@ document.addEventListener("DOMContentLoaded", () => {
       const data = await apiRequest("/auth/status");
       if (data.isAuthenticated) {
         state.currentUser = data.user;
-
-        // *** AQUI ESTÁ A LÓGICA DE RECONEXÃO ***
-        const lastRoomCode = sessionStorage.getItem("currentRoomCode");
-
+        const lastRoomCode = localStorage.getItem("currentRoomCode");
         if (lastRoomCode) {
-          // Se encontramos uma sala na memória, tentamos nos reconectar a ela.
           console.log(`Tentando reconectar à sala anterior: ${lastRoomCode}`);
           connectToGame(lastRoomCode);
         } else {
-          // Se não, carregamos o lobby normalmente.
           await fetchRooms();
           render();
         }
