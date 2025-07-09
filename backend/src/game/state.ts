@@ -12,7 +12,7 @@ export interface Player {
 
 export interface PlayerState extends Player {
   ws: WebSocket | null; // A conexão ativa ou null se estiver offline
-  inactiveTurns: number; // NOVO: Contador de turnos inativos (strikes)
+  inactiveTurns: number; // Contador de turnos inativos (strikes)
 }
 
 export interface PlayerInfoForClient {
@@ -29,9 +29,12 @@ export interface GameState {
   playerOrderHistory: PlayerId[]; // Histórico imutável da ordem dos jogadores da partida
   currentPlayerIndex: number;
   board: Board;
-  status: "waiting" | "playing" | "finished";
+  // ATUALIZADO: Adicionado novo status 'readyCheck'
+  status: "waiting" | "readyCheck" | "playing" | "finished";
   winner?: PlayerId | null;
   turnEndsAt?: number;
+  // NOVO: Array para rastrear os votos de "pronto"
+  readyVotes: PlayerId[];
   rematchVotes: PlayerId[];
   rematchVoteEndsAt?: number;
 }
@@ -44,9 +47,12 @@ export interface GameStateForClient {
   playerOrder: PlayerId[];
   playerOrderHistory: PlayerId[]; // Envia o histórico para o cliente
   currentPlayerIndex: number;
-  status: "waiting" | "playing" | "finished";
+  // ATUALIZADO: Adicionado novo status 'readyCheck'
+  status: "waiting" | "readyCheck" | "playing" | "finished";
   winner?: PlayerId | null;
   turnEndsAt?: number;
+  // NOVO: Envia os votos de "pronto" para o cliente
+  readyVotes: PlayerId[];
   rematchVotes: PlayerId[];
   rematchVoteEndsAt?: number;
 }
