@@ -32,6 +32,7 @@ export interface GameState {
   // ATUALIZADO: Adicionado novo status 'readyCheck'
   status: "waiting" | "readyCheck" | "playing" | "finished";
   winner?: PlayerId | null;
+  sessionWins: Map<PlayerId, number>;
   turnEndsAt?: number;
   // NOVO: Array para rastrear os votos de "pronto"
   readyVotes: PlayerId[];
@@ -50,6 +51,7 @@ export interface GameStateForClient {
   // ATUALIZADO: Adicionado novo status 'readyCheck'
   status: "waiting" | "readyCheck" | "playing" | "finished";
   winner?: PlayerId | null;
+  sessionWins: { [key: number]: number };
   turnEndsAt?: number;
   // NOVO: Envia os votos de "pronto" para o cliente
   readyVotes: PlayerId[];

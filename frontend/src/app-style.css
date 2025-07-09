@@ -361,15 +361,31 @@ button:disabled {
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
 }
+
+/* NOVO: Estilo para o novo container de ações */
+/* ATUALIZADO: O bloco de ações agora 'flutua' */
+.players-list-actions {
+  position: absolute; /* Tira do fluxo normal do documento */
+  top: 0; /* Alinha no topo do seu parente (.players-list-header) */
+  right: 0; /* Alinha na direita do seu parente */
+
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
 .players-list h3 {
   margin-top: 0;
   margin-bottom: 1rem;
 }
 
 .players-list-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  /* ATUALIZADO: Este agora é o 'container-âncora' */
+  position: relative;
+  /* A margem agora controla o espaço entre 'Jogadores' e a lista abaixo */
+  margin-bottom: 0.75rem;
+  /* display:flex e justify-content não são mais necessários aqui */
 }
 
 .players-list-header h3 {
@@ -392,6 +408,31 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  /* NOVO: Adicionado para garantir o alinhamento vertical dos itens */
+  line-height: 1.5;
+}
+
+/* NOVO: Estilo para o contador de vitórias (troféu) */
+.win-counter {
+  margin-left: 0.5rem;
+  font-size: 0.9em;
+  font-weight: bold;
+  color: var(--player2-color); /* Amarelo do jogador 2 para destacar */
+  display: inline-block; /* Ajuda no alinhamento */
+}
+
+/* NOVO: Estilo para o nome da sala */
+#roomNameDisplay {
+  color: var(--text-secondary);
+  /* 1. Tamanho da fonte igual ao do botão */
+  font-size: 0.8rem;
+  font-weight: 600;
+  /* 2. Padding reduzido para um bloco mais justo */
+  padding: 4px 10px;
+  background-color: var(--bg-main);
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  white-space: nowrap; /* Garante que não quebre a linha */
 }
 
 .chat-container {
@@ -608,6 +649,20 @@ button:disabled {
 /* NOVO: Estilo específico para o botão de sair */
 #readyCheckDeclineBtn {
   background-color: var(--error-color);
+}
+
+/* NOVO: Estilo específico para o botão de sair */
+#readyCheckDeclineBtn,
+#rematchModalDeclineBtn {
+  /* ATUALIZADO: Adicionado o novo botão a esta regra */
+  background-color: var(--error-color);
+}
+
+/* NOVO: Estilo para os parágrafos dentro do modal de revanche */
+#rematchVoteStatus {
+  color: var(--text-secondary);
+  font-size: 1rem;
+  margin: 0.5rem 0;
 }
 
 /* ============================================= */
