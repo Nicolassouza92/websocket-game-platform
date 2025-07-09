@@ -30,6 +30,7 @@ export interface GameState {
   board: Board;
   status: "waiting" | "readyCheck" | "playing" | "finished";
   winner?: PlayerId | null;
+  sessionWins: Map<PlayerId, number>;
   turnEndsAt?: number;
   readyVotes: PlayerId[];
   rematchVotes: PlayerId[];
@@ -47,6 +48,7 @@ export interface GameStateForClient {
   currentPlayerIndex: number;
   status: "waiting" | "readyCheck" | "playing" | "finished";
   winner?: PlayerId | null;
+  sessionWins: { [key: number]: number };
   turnEndsAt?: number;
   readyVotes: PlayerId[];
   rematchVotes: PlayerId[];

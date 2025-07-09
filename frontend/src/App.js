@@ -34,15 +34,19 @@ document.addEventListener("DOMContentLoaded", () => {
     chatForm: document.getElementById("chat-form"),
     chatInput: document.getElementById("chat-input"),
     chatMessages: document.getElementById("chat-messages"),
-    rematchContainer: document.getElementById("rematch-container"),
-    rematchStatus: document.getElementById("rematch-status"),
-    rematchAcceptBtn: document.getElementById("rematch-accept-btn"),
-    rematchDeclineBtn: document.getElementById("rematch-decline-btn"),
     leaveRoomBtn: document.getElementById("leaveRoomBtn"),
+    // Modal de prontidão
     readyCheckModal: document.getElementById("readyCheckModal"),
     readyCheckStatus: document.getElementById("readyCheckStatus"),
     readyCheckBtn: document.getElementById("readyCheckBtn"),
     readyCheckDeclineBtn: document.getElementById("readyCheckDeclineBtn"),
+    // NOVO: Referências para o modal de revanche
+    rematchModal: document.getElementById("rematchModal"),
+    rematchWinnerStatus: document.getElementById("rematchWinnerStatus"),
+    rematchVoteStatus: document.getElementById("rematchVoteStatus"),
+    rematchModalAcceptBtn: document.getElementById("rematchModalAcceptBtn"),
+    rematchModalDeclineBtn: document.getElementById("rematchModalDeclineBtn"),
+    roomNameDisplay: document.getElementById("roomNameDisplay"),
   };
 
   let turnCountdownInterval = null;
@@ -79,14 +83,29 @@ document.addEventListener("DOMContentLoaded", () => {
       elements.leaveRoomBtn.classList.toggle("hidden", !isInGame);
 
       if (isInGame) {
-        // Lógica de renderização quando está DENTRO de um jogo
+        // NOVO: Preenche o nome da sala
+        if (elements.roomNameDisplay) {
+          elements.roomNameDisplay.textContent = `Sala: ${currentRoom.roomCode}`;
+          elements.roomNameDisplay.classList.remove("hidden");
+        }
+
         renderPlayerList(currentRoom.players);
         renderBoard(currentRoom);
 
+        // Controla o modal de prontidão
         const isReadyCheck = currentRoom.status === "readyCheck";
         elements.readyCheckModal.classList.toggle("hidden", !isReadyCheck);
         if (isReadyCheck) {
           renderReadyCheckUI(currentRoom);
+        }
+
+        // Controla o modal de revanche
+        const isFinished = currentRoom.status === "finished";
+        elements.rematchModal.classList.toggle("hidden", !isFinished);
+        if (isFinished) {
+          renderRematchModalUI(currentRoom); // ATUALIZADO: Chama a nova função
+        } else {
+          stopRematchCountdown();
         }
 
         renderGameInfo(currentRoom);
@@ -96,18 +115,17 @@ document.addEventListener("DOMContentLoaded", () => {
         } else {
           stopTurnCountdown();
         }
-
-        if (currentRoom.status === "finished") {
-          renderRematchUI(currentRoom);
-        } else {
-          elements.rematchContainer.classList.add("hidden");
-          stopRematchCountdown();
-        }
       } else {
-        // Lógica de renderização quando está FORA de um jogo (no dashboard)
+        // NOVO: Garante que o nome da sala esteja escondido no lobby
+        if (elements.roomNameDisplay) {
+          elements.roomNameDisplay.classList.add("hidden");
+        }
+
         stopTurnCountdown();
         stopRematchCountdown();
         elements.readyCheckModal.classList.add("hidden");
+        elements.rematchModal.classList.add("hidden"); // Garante que o modal de revanche esteja escondido
+        renderRoomList(availableRooms);
       }
     } else {
       stopTurnCountdown();
@@ -140,8 +158,12 @@ document.addEventListener("DOMContentLoaded", () => {
   function startRematchCountdown() {
     if (rematchCountdownInterval) return;
     rematchCountdownInterval = setInterval(() => {
-      if (state.currentRoom) renderRematchUI(state.currentRoom);
-      else stopRematchCountdown();
+      // CORREÇÃO AQUI:
+      if (state.currentRoom && state.currentRoom.status === "finished") {
+        renderRematchModalUI(state.currentRoom); // Deve chamar a nova função renderRematchModalUI
+      } else {
+        stopRematchCountdown();
+      }
     }, 1000);
   }
 
@@ -260,29 +282,33 @@ document.addEventListener("DOMContentLoaded", () => {
       } else {
         elements.gameInfo.textContent = `Aguardando...${timerText}`;
       }
-    } else if (roomState.status === "finished") {
-      stopTurnCountdown();
-      const allPlayersInMatch = roomState.players.filter((p) =>
-        roomState.playerOrderHistory.includes(p.id)
-      );
-      const winner = allPlayersInMatch.find((p) => p.id === roomState.winner);
-      let finishMessage;
-      if (winner) {
-        finishMessage = `O vencedor é ${winner.username}!`;
-      } else if (roomState.winner === null) {
-        finishMessage = "O jogo terminou em empate!";
-      }
-      elements.rematchStatus.textContent = finishMessage;
     }
+    // REMOVIDO: O 'else if (roomState.status === "finished")' foi removido daqui
+    // pois essa lógica agora está no modal.
   }
 
   function renderPlayerList(players) {
     if (!elements.playerListContent) return;
     elements.playerListContent.innerHTML = "";
+
+    // Pega o placar de vitórias do estado da sala
+    const wins = state.currentRoom.sessionWins || {};
+
     players.forEach((player) => {
       const playerEl = document.createElement("div");
       const statusIcon = player.isOnline ? "🟢" : "🔴";
-      playerEl.innerHTML = `${statusIcon} ${player.username}`;
+
+      // NOVO: Verifica se o jogador tem vitórias na sessão
+      const playerWins = wins[player.id];
+      let winCounterHTML = "";
+      if (playerWins > 0) {
+        // Cria o HTML para o troféu e a contagem
+        winCounterHTML = `<span class="win-counter">🏆 ${playerWins}</span>`;
+      }
+
+      // Constrói o HTML final com ou sem o contador de vitórias
+      playerEl.innerHTML = `${statusIcon} ${player.username} ${winCounterHTML}`;
+
       elements.playerListContent.appendChild(playerEl);
     });
   }
@@ -653,9 +679,87 @@ document.addEventListener("DOMContentLoaded", () => {
       state.socket.send(JSON.stringify({ type: "VOTE_REMATCH" }));
   });
 
-  elements.rematchDeclineBtn.addEventListener("click", () => {
-    if (state.socket) state.socket.send(JSON.stringify({ type: "LEAVE_ROOM" }));
-  });
+  function showSnackbar(message, type = "info", duration = 4000) {
+    const container = document.getElementById("snackbar-container");
+    if (!container) return;
+    const existingSnackbar = container.querySelector(".snackbar");
+    if (existingSnackbar) {
+      existingSnackbar.remove();
+    }
+    const snackbar = document.createElement("div");
+    snackbar.className = `snackbar ${type}`;
+    snackbar.textContent = message;
+    container.appendChild(snackbar);
+    requestAnimationFrame(() => {
+      snackbar.classList.add("show");
+    });
+    setTimeout(() => {
+      snackbar.classList.remove("show");
+      snackbar.classList.add("hiding");
+      snackbar.addEventListener("animationend", () => {
+        snackbar.remove();
+      });
+    }, duration);
+  }
+
+  // NOVO: Função para renderizar o UI do modal de prontidão
+  function renderReadyCheckUI(roomState) {
+    if (!elements.readyCheckModal) return;
+
+    const { readyVotes, players } = roomState;
+    const myVote = readyVotes.includes(state.currentUser.userId);
+    const votesCount = readyVotes.length;
+    const totalPlayers = players.length;
+
+    elements.readyCheckStatus.textContent = `Jogadores Prontos: ${votesCount}/${totalPlayers}`;
+
+    elements.readyCheckBtn.disabled = myVote;
+    if (myVote) {
+      elements.readyCheckBtn.textContent = "Aguardando outros...";
+    } else {
+      elements.readyCheckBtn.textContent = "Estou Pronto!";
+    }
+  }
+
+  function renderRematchModalUI(roomState) {
+    startRematchCountdown();
+    const { rematchVotes, rematchVoteEndsAt, players, winner } = roomState;
+    const myVote = rematchVotes.includes(state.currentUser.userId);
+
+    // 1. Lógica da mensagem de vitória
+    if (winner === state.currentUser.userId) {
+      elements.rematchWinnerStatus.textContent = "Você ganhou, parabéns!";
+    } else if (winner === null) {
+      elements.rematchWinnerStatus.textContent = "O jogo terminou em empate!";
+    } else {
+      const winnerPlayer = players.find((p) => p.id === winner);
+      elements.rematchWinnerStatus.textContent = winnerPlayer
+        ? `O vencedor é ${winnerPlayer.username}!`
+        : "Fim de jogo!";
+    }
+
+    // 2. Lógica do status de votação (timer e contagem)
+    let timerText = "";
+    if (rematchVoteEndsAt) {
+      const timeLeft = Math.max(
+        0,
+        Math.round((rematchVoteEndsAt - Date.now()) / 1000)
+      );
+      timerText = `Tempo para votar: ${String(timeLeft).padStart(2, "0")}s`;
+    }
+    const votesCount = rematchVotes.length;
+    const totalPlayers = players.length;
+    elements.rematchVoteStatus.textContent = `${timerText}  |  Votos: ${votesCount}/${totalPlayers}`;
+
+    // 3. Lógica dos botões
+    elements.rematchModalAcceptBtn.disabled = myVote;
+    elements.rematchModalDeclineBtn.disabled = myVote;
+    if (myVote) {
+      elements.rematchModalAcceptBtn.textContent = "Aguardando outros...";
+    } else {
+      elements.rematchModalAcceptBtn.textContent = "Jogar Novamente";
+    }
+  }
 
   // =============================================
   // --- INICIALIZAÇÃO DA APLICAÇÃO ---
@@ -681,6 +785,32 @@ document.addEventListener("DOMContentLoaded", () => {
       render();
     }
   }
+
+  // NOVO: Event listener para o botão de "Estou Pronto!"
+  elements.readyCheckBtn.addEventListener("click", () => {
+    if (state.socket) {
+      state.socket.send(JSON.stringify({ type: "VOTE_READY" }));
+    }
+  });
+
+  elements.readyCheckDeclineBtn.addEventListener("click", () => {
+    if (state.socket) {
+      // Envia a mesma mensagem que os outros botões de sair
+      state.socket.send(JSON.stringify({ type: "LEAVE_ROOM" }));
+    }
+  });
+
+  elements.rematchModalAcceptBtn.addEventListener("click", () => {
+    if (state.socket) {
+      state.socket.send(JSON.stringify({ type: "VOTE_REMATCH" }));
+    }
+  });
+
+  elements.rematchModalDeclineBtn.addEventListener("click", () => {
+    if (state.socket) {
+      state.socket.send(JSON.stringify({ type: "LEAVE_ROOM" }));
+    }
+  });
 
   window.addEventListener("hashchange", handleAuthView);
   initializeApp();
