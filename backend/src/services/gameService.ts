@@ -1,4 +1,3 @@
-// backend/src/services/gameService.ts
 import { WebSocket } from "ws";
 import {
   GameState,
@@ -33,13 +32,15 @@ export function createRoom(creator: Player): GameState {
     hostId: creator.id,
     players: new Map<PlayerId, PlayerState>(),
     playerOrder: [],
-    playerOrderHistory: [], // 1. Inicializa o histórico
+    playerOrderHistory: [],
     board: Array(9)
       .fill(null)
       .map(() => Array(10).fill(null)),
     currentPlayerIndex: 0,
     status: "waiting",
     winner: undefined,
+    // NOVO: Inicializa o array de votos de pronto
+    readyVotes: [],
     rematchVotes: [],
   };
   rooms.set(roomCode, initialState);
@@ -103,20 +104,21 @@ export function handlePlayerConnection(
     `[GameService] Jogador ${player.username} entrou na sala ${roomCode}. (${room.players.size}/3)`
   );
 
+  // ATUALIZADO: Lógica para quando a sala fica cheia
   if (room.players.size === 3) {
-    console.log(`[GameService] Sala ${roomCode} cheia. Iniciando jogo.`);
-    room.status = "playing";
-    room.currentPlayerIndex = 0;
-    // 2. Tira a "foto" dos jogadores no início da partida
-    room.playerOrderHistory = [...room.playerOrder];
-    startTurnTimer(room);
+    console.log(
+      `[GameService] Sala ${roomCode} cheia. Iniciando fase de prontidão.`
+    );
+    // Em vez de iniciar o jogo, entra no modo de 'readyCheck'
+    room.status = "readyCheck";
+    room.readyVotes = []; // Garante que a lista de votos esteja limpa
   }
 
   broadcastRoomState(room);
   attachMessageHandlers(ws, roomCode, player);
 }
 
-// ... (as funções de timer, handlers, leave e disconnect permanecem como estão)
+// ... (as funções de timer, etc, permanecem as mesmas por enquanto)
 function clearTurnTimer(roomCode: string) {
   const existingTimer = turnTimers.get(roomCode);
   if (existingTimer) {
@@ -188,17 +190,20 @@ function attachMessageHandlers(
   player: Player
 ) {
   ws.on("message", async (message: string) => {
-    // Tornar async
     try {
       const parsedMessage = JSON.parse(message);
       switch (parsedMessage.type) {
+        // NOVO: Manipulador para o voto de pronto
+        case "VOTE_READY":
+          handleReadyVote(ws, roomCode, player.id);
+          break;
         case "MAKE_MOVE":
           await handleMakeMove(
             ws,
             roomCode,
             player.id,
             parsedMessage.payload.column
-          ); // Adicionar await
+          );
           break;
         case "LEAVE_ROOM":
           handlePlayerLeave(ws, roomCode, player.id);
@@ -287,9 +292,13 @@ function handlePlayerLeave(
     return;
   }
 
-  if (room.status === "playing" && room.players.size < 2) {
+  // ATUALIZADO: Se um jogador sair durante a verificação de prontidão, a sala volta a esperar.
+  if (
+    room.status === "readyCheck" ||
+    (room.status === "playing" && room.players.size < 2)
+  ) {
     console.log(
-      `[GameService] Apenas 1 jogador restou. Sala ${roomCode} voltando para o estado de espera.`
+      `[GameService] Jogador saiu, número de jogadores insuficiente. Sala ${roomCode} voltando para o estado de espera.`
     );
     resetRoomToWaiting(room);
   } else if (room.status === "playing") {
@@ -350,7 +359,46 @@ function handlePlayerDisconnection(ws: WebSocket) {
   reconnectionTimers.set(playerId, timeout);
 }
 
-async function handleMakeMove( // Tornar async
+// NOVO: Função para iniciar o jogo de fato
+function startGame(room: GameState) {
+  console.log(
+    `[GameService] Todos os jogadores estão prontos. Iniciando jogo na sala ${room.roomCode}.`
+  );
+  room.status = "playing";
+  room.currentPlayerIndex = 0;
+  // Tira a "foto" dos jogadores no início da partida
+  room.playerOrderHistory = [...room.playerOrder];
+  startTurnTimer(room);
+  broadcastRoomState(room);
+}
+
+// NOVO: Função para lidar com o voto de "pronto"
+function handleReadyVote(ws: WebSocket, roomCode: string, playerId: PlayerId) {
+  const room = rooms.get(roomCode);
+  if (
+    !room ||
+    room.status !== "readyCheck" ||
+    room.readyVotes.includes(playerId)
+  ) {
+    return;
+  }
+
+  console.log(
+    `[GameService] Jogador com ID ${playerId} votou como pronto na sala ${roomCode}.`
+  );
+  room.readyVotes.push(playerId);
+
+  // Verifica se todos os jogadores na sala votaram
+  if (room.readyVotes.length === room.players.size) {
+    // Se sim, inicia o jogo
+    startGame(room);
+  } else {
+    // Se não, apenas atualiza o estado para os outros clientes
+    broadcastRoomState(room);
+  }
+}
+
+async function handleMakeMove(
   ws: WebSocket,
   roomCode: string,
   playerId: PlayerId,
@@ -369,9 +417,7 @@ async function handleMakeMove( // Tornar async
     if (newState.status === "finished") {
       clearTurnTimer(roomCode);
       delete newState.turnEndsAt;
-      // ### NOVO: GRAVAR PARTIDA FINALIZADA ###
       try {
-        // playerOrderHistory tem a lista de todos que iniciaram a partida
         await Match.record(
           newState.winner ?? null,
           newState.playerOrderHistory
@@ -381,7 +427,6 @@ async function handleMakeMove( // Tornar async
           `[GameService] Falha ao gravar a partida ${roomCode} no banco de dados:`,
           dbError
         );
-        // O jogo continua mesmo se o DB falhar
       }
       startRematchVotePhase(newState);
     } else {
@@ -469,9 +514,11 @@ function resetRoomToWaiting(room: GameState) {
     .map(() => Array(10).fill(null));
   room.currentPlayerIndex = 0;
   delete room.winner;
+  // ATUALIZADO: Limpa os votos de pronto e de revanche
+  room.readyVotes = [];
   room.rematchVotes = [];
   delete room.rematchVoteEndsAt;
-  room.playerOrderHistory = []; // 4. Limpa a "foto" da partida anterior
+  room.playerOrderHistory = [];
   room.players.forEach((p) => (p.inactiveTurns = 0));
 
   if (room.players.size > 0 && !room.players.has(room.hostId)) {
@@ -494,7 +541,6 @@ function resetGameForRematch(room: GameState) {
   room.winner = undefined;
   room.rematchVotes = [];
   delete room.rematchVoteEndsAt;
-  // 3. Tira uma nova "foto" para a nova partida
   room.playerOrderHistory = [...room.playerOrder];
   room.players.forEach((p) => (p.inactiveTurns = 0));
 
@@ -568,11 +614,13 @@ function getGameStateForClient(room: GameState): GameStateForClient {
     })),
     board: room.board,
     playerOrder: room.playerOrder,
-    playerOrderHistory: room.playerOrderHistory, // Envia o histórico
+    playerOrderHistory: room.playerOrderHistory,
     currentPlayerIndex: room.currentPlayerIndex,
     status: room.status,
     winner: room.winner,
     turnEndsAt: room.turnEndsAt,
+    // ATUALIZADO: Inclui os votos de pronto no estado enviado ao cliente
+    readyVotes: room.readyVotes,
     rematchVotes: room.rematchVotes,
     rematchVoteEndsAt: room.rematchVoteEndsAt,
   };

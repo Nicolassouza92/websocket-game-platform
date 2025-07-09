@@ -77,7 +77,7 @@
             </div>
             <div id="game-info" class="game-status-bar"></div>
 
-            <!-- NOVO: Container para a votação de "Jogar Novamente" -->
+            <!-- Container para a votação de "Jogar Novamente" -->
             <div id="rematch-container" class="game-status-bar hidden">
               <p id="rematch-status"></p>
               <div id="rematch-actions">
@@ -120,6 +120,22 @@
               </form>
             </div>
           </aside>
+        </div>
+      </div>
+    </div>
+
+    <!-- NOVO: Modal de verificação de prontidão -->
+    <div id="readyCheckModal" class="modal-overlay hidden">
+      <div class="modal-content">
+        <h2>A Partida pode começar?</h2>
+        <p id="readyCheckStatus">
+          A partida começará quando todos estiverem prontos.
+        </p>
+        <!-- ATUALIZADO: Botões dentro de um container -->
+        <div class="modal-actions">
+          <button id="readyCheckBtn">Estou Pronto!</button>
+          <!-- NOVO: Botão para sair -->
+          <button id="readyCheckDeclineBtn">Sair da Sala</button>
         </div>
       </div>
     </div>

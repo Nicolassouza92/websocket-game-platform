@@ -10,7 +10,6 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- Referências aos Elementos da UI ---
   const elements = {
     authContainer: document.getElementById("authContainer"),
-    // NOVO: Referências específicas para os wrappers dos formulários
     registerWrapper: document.getElementById("registerWrapper"),
     loginWrapper: document.getElementById("loginWrapper"),
     mainAppContainer: document.getElementById("mainAppContainer"),
@@ -34,6 +33,11 @@ document.addEventListener("DOMContentLoaded", () => {
     rematchAcceptBtn: document.getElementById("rematch-accept-btn"),
     rematchDeclineBtn: document.getElementById("rematch-decline-btn"),
     leaveRoomBtn: document.getElementById("leaveRoomBtn"),
+    // NOVO: Referências para o modal de prontidão
+    readyCheckModal: document.getElementById("readyCheckModal"),
+    readyCheckStatus: document.getElementById("readyCheckStatus"),
+    readyCheckBtn: document.getElementById("readyCheckBtn"),
+    readyCheckDeclineBtn: document.getElementById("readyCheckDeclineBtn"),
   };
 
   let turnCountdownInterval = null;
@@ -43,16 +47,10 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- FUNÇÃO PARA CONTROLAR A VISÃO DE AUTH ---
   // =============================================
   function handleAuthView() {
-    // Se o usuário está logado, não faz nada
     if (state.currentUser) return;
-
-    // Pega a hash da URL (ex: #login). Se não houver, assume #login como padrão.
     const hash = window.location.hash || "#login";
-
     if (elements.registerWrapper && elements.loginWrapper) {
-      // Mostra o formulário de registro apenas se a hash for #register
       elements.registerWrapper.classList.toggle("hidden", hash !== "#register");
-      // Mostra o formulário de login apenas se a hash for #login
       elements.loginWrapper.classList.toggle("hidden", hash !== "#login");
     }
   }
@@ -75,9 +73,18 @@ document.addEventListener("DOMContentLoaded", () => {
       elements.leaveRoomBtn.classList.toggle("hidden", !isInGame);
 
       if (isInGame) {
-        renderGameInfo(currentRoom);
+        // ATUALIZADO: Lógica de renderização movida para dentro de if(isInGame)
         renderPlayerList(currentRoom.players);
-        renderBoard(currentRoom); // Passa o objeto room inteiro
+        renderBoard(currentRoom);
+
+        // Oculta/mostra o modal de prontidão
+        const isReadyCheck = currentRoom.status === "readyCheck";
+        elements.readyCheckModal.classList.toggle("hidden", !isReadyCheck);
+        if (isReadyCheck) {
+          renderReadyCheckUI(currentRoom);
+        }
+
+        renderGameInfo(currentRoom);
 
         if (currentRoom.status === "playing") {
           startTurnCountdown();
@@ -94,11 +101,11 @@ document.addEventListener("DOMContentLoaded", () => {
       } else {
         stopTurnCountdown();
         stopRematchCountdown();
+        elements.readyCheckModal.classList.add("hidden"); // Garante que o modal esteja escondido
         renderRoomList(availableRooms);
       }
     } else {
       stopTurnCountdown();
-      // ATUALIZADO: Garante que a visão de auth correta seja exibida ao renderizar
       handleAuthView();
     }
   }
@@ -159,10 +166,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function renderGameInfo(roomState) {
     if (!elements.gameInfo) return;
-    elements.gameInfo.classList.toggle(
-      "hidden",
-      roomState.status === "finished"
-    );
+    // Esconde a barra de status se estiver em readyCheck ou finished
+    const hideGameInfo = ["finished", "readyCheck"].includes(roomState.status);
+    elements.gameInfo.classList.toggle("hidden", hideGameInfo);
 
     if (roomState.status === "waiting") {
       elements.gameInfo.textContent = `Aguardando jogadores... (${roomState.players.length}/3)`;
@@ -190,12 +196,10 @@ document.addEventListener("DOMContentLoaded", () => {
       } else if (currentPlayer) {
         elements.gameInfo.textContent = `Aguardando a jogada de ${currentPlayer.username}...${timerText}`;
       } else {
-        // Caso o jogador atual tenha saído
         elements.gameInfo.textContent = `Aguardando...${timerText}`;
       }
     } else if (roomState.status === "finished") {
       stopTurnCountdown();
-      // Para encontrar o nome do vencedor, precisamos de uma lista que contenha todos os que participaram
       const allPlayersInMatch = roomState.players.filter((p) =>
         roomState.playerOrderHistory.includes(p.id)
       );
@@ -288,7 +292,7 @@ document.addEventListener("DOMContentLoaded", () => {
     elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
   }
 
-  // --- Lógica de API e Eventos ---
+  // ... (apiRequest, handleLoginSuccess, e os event listeners de auth/logout/rooms permanecem os mesmos) ...
   async function apiRequest(endpoint, method = "GET", body = null) {
     try {
       const options = {
@@ -451,6 +455,11 @@ document.addEventListener("DOMContentLoaded", () => {
             state.currentRoom.players.length < 3
           ) {
             showSnackbar("Aguardando mais jogadores...", "info");
+          } else if (payload.gameState.status === "readyCheck") {
+            showSnackbar(
+              "Sala cheia! Todos devem confirmar para começar.",
+              "info"
+            );
           }
           render();
           break;
@@ -502,6 +511,25 @@ document.addEventListener("DOMContentLoaded", () => {
     }, duration);
   }
 
+  // NOVO: Função para renderizar o UI do modal de prontidão
+  function renderReadyCheckUI(roomState) {
+    if (!elements.readyCheckModal) return;
+
+    const { readyVotes, players } = roomState;
+    const myVote = readyVotes.includes(state.currentUser.userId);
+    const votesCount = readyVotes.length;
+    const totalPlayers = players.length;
+
+    elements.readyCheckStatus.textContent = `Jogadores Prontos: ${votesCount}/${totalPlayers}`;
+
+    elements.readyCheckBtn.disabled = myVote;
+    if (myVote) {
+      elements.readyCheckBtn.textContent = "Aguardando outros...";
+    } else {
+      elements.readyCheckBtn.textContent = "Estou Pronto!";
+    }
+  }
+
   function renderRematchUI(roomState) {
     elements.rematchContainer.classList.remove("hidden");
     startRematchCountdown();
@@ -550,6 +578,20 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // NOVO: Event listener para o botão de "Estou Pronto!"
+  elements.readyCheckBtn.addEventListener("click", () => {
+    if (state.socket) {
+      state.socket.send(JSON.stringify({ type: "VOTE_READY" }));
+    }
+  });
+
+  elements.readyCheckDeclineBtn.addEventListener("click", () => {
+    if (state.socket) {
+      // Envia a mesma mensagem que os outros botões de sair
+      state.socket.send(JSON.stringify({ type: "LEAVE_ROOM" }));
+    }
+  });
+
   elements.rematchAcceptBtn.addEventListener("click", () => {
     if (state.socket) {
       state.socket.send(JSON.stringify({ type: "VOTE_REMATCH" }));
@@ -562,7 +604,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // NOVO: Adiciona um listener para o evento de mudança de hash na URL
   window.addEventListener("hashchange", handleAuthView);
 
   initializeApp();
