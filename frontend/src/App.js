@@ -28,16 +28,19 @@ document.addEventListener("DOMContentLoaded", () => {
     chatForm: document.getElementById("chat-form"),
     chatInput: document.getElementById("chat-input"),
     chatMessages: document.getElementById("chat-messages"),
-    rematchContainer: document.getElementById("rematch-container"),
-    rematchStatus: document.getElementById("rematch-status"),
-    rematchAcceptBtn: document.getElementById("rematch-accept-btn"),
-    rematchDeclineBtn: document.getElementById("rematch-decline-btn"),
     leaveRoomBtn: document.getElementById("leaveRoomBtn"),
-    // NOVO: Referências para o modal de prontidão
+    // Modal de prontidão
     readyCheckModal: document.getElementById("readyCheckModal"),
     readyCheckStatus: document.getElementById("readyCheckStatus"),
     readyCheckBtn: document.getElementById("readyCheckBtn"),
     readyCheckDeclineBtn: document.getElementById("readyCheckDeclineBtn"),
+    // NOVO: Referências para o modal de revanche
+    rematchModal: document.getElementById("rematchModal"),
+    rematchWinnerStatus: document.getElementById("rematchWinnerStatus"),
+    rematchVoteStatus: document.getElementById("rematchVoteStatus"),
+    rematchModalAcceptBtn: document.getElementById("rematchModalAcceptBtn"),
+    rematchModalDeclineBtn: document.getElementById("rematchModalDeclineBtn"),
+    roomNameDisplay: document.getElementById("roomNameDisplay"),
   };
 
   let turnCountdownInterval = null;
@@ -73,15 +76,29 @@ document.addEventListener("DOMContentLoaded", () => {
       elements.leaveRoomBtn.classList.toggle("hidden", !isInGame);
 
       if (isInGame) {
-        // ATUALIZADO: Lógica de renderização movida para dentro de if(isInGame)
+        // NOVO: Preenche o nome da sala
+        if (elements.roomNameDisplay) {
+          elements.roomNameDisplay.textContent = `Sala: ${currentRoom.roomCode}`;
+          elements.roomNameDisplay.classList.remove("hidden");
+        }
+
         renderPlayerList(currentRoom.players);
         renderBoard(currentRoom);
 
-        // Oculta/mostra o modal de prontidão
+        // Controla o modal de prontidão
         const isReadyCheck = currentRoom.status === "readyCheck";
         elements.readyCheckModal.classList.toggle("hidden", !isReadyCheck);
         if (isReadyCheck) {
           renderReadyCheckUI(currentRoom);
+        }
+
+        // Controla o modal de revanche
+        const isFinished = currentRoom.status === "finished";
+        elements.rematchModal.classList.toggle("hidden", !isFinished);
+        if (isFinished) {
+          renderRematchModalUI(currentRoom); // ATUALIZADO: Chama a nova função
+        } else {
+          stopRematchCountdown();
         }
 
         renderGameInfo(currentRoom);
@@ -91,17 +108,16 @@ document.addEventListener("DOMContentLoaded", () => {
         } else {
           stopTurnCountdown();
         }
-
-        if (currentRoom.status === "finished") {
-          renderRematchUI(currentRoom);
-        } else {
-          elements.rematchContainer.classList.add("hidden");
-          stopRematchCountdown();
-        }
       } else {
+        // NOVO: Garante que o nome da sala esteja escondido no lobby
+        if (elements.roomNameDisplay) {
+          elements.roomNameDisplay.classList.add("hidden");
+        }
+
         stopTurnCountdown();
         stopRematchCountdown();
-        elements.readyCheckModal.classList.add("hidden"); // Garante que o modal esteja escondido
+        elements.readyCheckModal.classList.add("hidden");
+        elements.rematchModal.classList.add("hidden"); // Garante que o modal de revanche esteja escondido
         renderRoomList(availableRooms);
       }
     } else {
@@ -136,8 +152,9 @@ document.addEventListener("DOMContentLoaded", () => {
   function startRematchCountdown() {
     if (rematchCountdownInterval) return;
     rematchCountdownInterval = setInterval(() => {
-      if (state.currentRoom) {
-        renderRematchUI(state.currentRoom);
+      // CORREÇÃO AQUI:
+      if (state.currentRoom && state.currentRoom.status === "finished") {
+        renderRematchModalUI(state.currentRoom); // Deve chamar a nova função renderRematchModalUI
       } else {
         stopRematchCountdown();
       }
@@ -166,7 +183,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function renderGameInfo(roomState) {
     if (!elements.gameInfo) return;
-    // Esconde a barra de status se estiver em readyCheck ou finished
     const hideGameInfo = ["finished", "readyCheck"].includes(roomState.status);
     elements.gameInfo.classList.toggle("hidden", hideGameInfo);
 
@@ -198,29 +214,33 @@ document.addEventListener("DOMContentLoaded", () => {
       } else {
         elements.gameInfo.textContent = `Aguardando...${timerText}`;
       }
-    } else if (roomState.status === "finished") {
-      stopTurnCountdown();
-      const allPlayersInMatch = roomState.players.filter((p) =>
-        roomState.playerOrderHistory.includes(p.id)
-      );
-      const winner = allPlayersInMatch.find((p) => p.id === roomState.winner);
-      let finishMessage;
-      if (winner) {
-        finishMessage = `O vencedor é ${winner.username}!`;
-      } else if (roomState.winner === null) {
-        finishMessage = "O jogo terminou em empate!";
-      }
-      elements.rematchStatus.textContent = finishMessage;
     }
+    // REMOVIDO: O 'else if (roomState.status === "finished")' foi removido daqui
+    // pois essa lógica agora está no modal.
   }
 
   function renderPlayerList(players) {
     if (!elements.playerListContent) return;
     elements.playerListContent.innerHTML = "";
+
+    // Pega o placar de vitórias do estado da sala
+    const wins = state.currentRoom.sessionWins || {};
+
     players.forEach((player) => {
       const playerEl = document.createElement("div");
       const statusIcon = player.isOnline ? "🟢" : "🔴";
-      playerEl.innerHTML = `${statusIcon} ${player.username}`;
+
+      // NOVO: Verifica se o jogador tem vitórias na sessão
+      const playerWins = wins[player.id];
+      let winCounterHTML = "";
+      if (playerWins > 0) {
+        // Cria o HTML para o troféu e a contagem
+        winCounterHTML = `<span class="win-counter">🏆 ${playerWins}</span>`;
+      }
+
+      // Constrói o HTML final com ou sem o contador de vitórias
+      playerEl.innerHTML = `${statusIcon} ${player.username} ${winCounterHTML}`;
+
       elements.playerListContent.appendChild(playerEl);
     });
   }
@@ -530,11 +550,24 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  function renderRematchUI(roomState) {
-    elements.rematchContainer.classList.remove("hidden");
+  function renderRematchModalUI(roomState) {
     startRematchCountdown();
-    const { rematchVotes, rematchVoteEndsAt, players } = roomState;
+    const { rematchVotes, rematchVoteEndsAt, players, winner } = roomState;
     const myVote = rematchVotes.includes(state.currentUser.userId);
+
+    // 1. Lógica da mensagem de vitória
+    if (winner === state.currentUser.userId) {
+      elements.rematchWinnerStatus.textContent = "Você ganhou, parabéns!";
+    } else if (winner === null) {
+      elements.rematchWinnerStatus.textContent = "O jogo terminou em empate!";
+    } else {
+      const winnerPlayer = players.find((p) => p.id === winner);
+      elements.rematchWinnerStatus.textContent = winnerPlayer
+        ? `O vencedor é ${winnerPlayer.username}!`
+        : "Fim de jogo!";
+    }
+
+    // 2. Lógica do status de votação (timer e contagem)
     let timerText = "";
     if (rematchVoteEndsAt) {
       const timeLeft = Math.max(
@@ -545,13 +578,15 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     const votesCount = rematchVotes.length;
     const totalPlayers = players.length;
-    elements.rematchStatus.textContent = `${timerText}  |  Votos: ${votesCount}/${totalPlayers}`;
-    elements.rematchAcceptBtn.disabled = myVote;
-    elements.rematchDeclineBtn.disabled = myVote;
+    elements.rematchVoteStatus.textContent = `${timerText}  |  Votos: ${votesCount}/${totalPlayers}`;
+
+    // 3. Lógica dos botões
+    elements.rematchModalAcceptBtn.disabled = myVote;
+    elements.rematchModalDeclineBtn.disabled = myVote;
     if (myVote) {
-      elements.rematchAcceptBtn.textContent = "Aguardando outros...";
+      elements.rematchModalAcceptBtn.textContent = "Aguardando outros...";
     } else {
-      elements.rematchAcceptBtn.textContent = "Jogar Novamente";
+      elements.rematchModalAcceptBtn.textContent = "Jogar Novamente";
     }
   }
 
@@ -592,13 +627,13 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  elements.rematchAcceptBtn.addEventListener("click", () => {
+  elements.rematchModalAcceptBtn.addEventListener("click", () => {
     if (state.socket) {
       state.socket.send(JSON.stringify({ type: "VOTE_REMATCH" }));
     }
   });
 
-  elements.rematchDeclineBtn.addEventListener("click", () => {
+  elements.rematchModalDeclineBtn.addEventListener("click", () => {
     if (state.socket) {
       state.socket.send(JSON.stringify({ type: "LEAVE_ROOM" }));
     }
