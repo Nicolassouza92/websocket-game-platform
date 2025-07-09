@@ -114,7 +114,7 @@ export function handlePlayerConnection(
   attachMessageHandlers(ws, roomCode, player);
 }
 
-// --- Funções de Lógica de Jogo e Sala (Unificadas) ---
+// --- Funções de Lógica de Jogo e Sala (Unificadas e Corrigidas) ---
 
 function attachMessageHandlers(
   ws: WebSocket,
@@ -194,9 +194,10 @@ function handlePlayerLeave(
     return;
   }
 
-  // Se o host saiu, promove um novo host
+  // **INÍCIO DA LÓGICA CORRIGIDA**
+  // Se o host saiu, promove um novo host em vez de fechar a sala
   if (wasHost) {
-    room.hostId = room.playerOrder[0];
+    room.hostId = room.playerOrder[0]; // O próximo jogador na ordem vira o novo host
     const newHost = room.players.get(room.hostId);
     if (newHost) {
       broadcastToRoom(roomCode, {
@@ -207,6 +208,7 @@ function handlePlayerLeave(
       });
     }
   }
+  // **FIM DA LÓGICA CORRIGIDA**
 
   // Se a saída foi durante a votação de revanche, processa os votos restantes
   if (statusBeforeLeave === "finished") {
@@ -227,7 +229,7 @@ function handlePlayerLeave(
     resetRoomToWaiting(room);
   } else if (statusBeforeLeave === "playing") {
     console.log(
-      `[GameService] Restam ${room.players.size} jogadores na sala ${roomCode}. O jogo continua.`
+      `[GameService] Restam ${room.players.size} jogadores. O jogo continua.`
     );
     room.currentPlayerIndex %= room.playerOrder.length;
     broadcastToRoom(roomCode, {
@@ -236,9 +238,10 @@ function handlePlayerLeave(
         message: `${leavingPlayer.username} saiu. O jogo continua entre os restantes.`,
       },
     });
-    startTurnTimer(room);
+    startTurnTimer(room); // Reinicia o timer para o próximo jogador
     broadcastRoomState(room);
   } else {
+    // Para outros estados (como 'waiting'), apenas atualiza a UI
     broadcastRoomState(room);
   }
 
@@ -407,7 +410,7 @@ function handleRematchVote(
   }
 }
 
-// --- Funções Auxiliares de Setup e Timers ---
+// --- Funções Auxiliares de Setup e Timers (sem alterações) ---
 
 function clearTurnTimer(roomCode: string) {
   const existingTimer = turnTimers.get(roomCode);
