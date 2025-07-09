@@ -308,6 +308,10 @@ h3 {
   color: var(--success-color);
   font-weight: 600;
 }
+.table th:last-child,
+.table td:last-child {
+  text-align: center;
+}
 
 /* ============================================= */
 /* --- NOVO: Footer --- */

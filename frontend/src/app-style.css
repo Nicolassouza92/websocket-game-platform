@@ -2,29 +2,25 @@
 /* --- Variáveis Globais (Paleta de Cores) --- */
 /* ============================================= */
 :root {
-  --bg-main: #1a202c; /* Fundo principal escuro (quase preto) */
-  --bg-surface: #2d3748; /* Cor de superfície para cards e sidebars */
-  --text-primary: #e2e8f0; /* Cor de texto principal (branco suave) */
-  --text-secondary: #a0aec0; /* Cor de texto secundária (cinza claro) */
-  --border-color: #4a5568; /* Cor para bordas e separadores */
-  --accent-color: #4299e1; /* Cor de destaque para botões e links (azul) */
-  --success-color: #48bb78; /* Verde para ações de sucesso */
-  --error-color: #f56565; /* Vermelho para erros */
-
-  /* Cores do Tabuleiro (Inspirado na IA) */
-  --board-frame-color: #4a90a4; /* Azul mais escuro para a moldura */
-  --board-frame-shadow: #2c5f75; /* Sombra da moldura */
-  --board-frame-highlight: #6bb6cc; /* Destaque da moldura */
-  --board-hole-bg: #2d3748; /* Fundo do buraco, um pouco mais claro que o fundo principal */
-  --board-hole-shadow: #1a202c; /* Sombra interna dos buracos (escura) */
-
-  /* Cores das Peças dos Jogadores */
-  --player1-color: #e53e3e; /* Vermelho */
-  --player1-shadow: #9b2c2c; /* Sombra vermelha mais escura */
-  --player2-color: #f6e05e; /* Amarelo */
-  --player2-shadow: #b7791f; /* Sombra amarela mais escura */
-  --player3-color: #4299e1; /* Azul */
-  --player3-shadow: #2c5282; /* Sombra azul mais escura */
+  --bg-main: #1a202c;
+  --bg-surface: #2d3748;
+  --text-primary: #e2e8f0;
+  --text-secondary: #a0aec0;
+  --border-color: #4a5568;
+  --accent-color: #4299e1;
+  --success-color: #48bb78;
+  --error-color: #f56565;
+  --board-frame-color: #4a90a4;
+  --board-frame-shadow: #2c5f75;
+  --board-frame-highlight: #6bb6cc;
+  --board-hole-bg: #2d3748;
+  --board-hole-shadow: #1a202c;
+  --player1-color: #e53e3e;
+  --player1-shadow: #9b2c2c;
+  --player2-color: #f6e05e;
+  --player2-shadow: #b7791f;
+  --player3-color: #4299e1;
+  --player3-shadow: #2c5282;
 }
 
 /* ============================================= */
@@ -35,8 +31,6 @@ body {
   color: var(--text-primary);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   margin: 0;
-  height: 100vh;
-  overflow: hidden;
   font-size: 16px;
 }
 
@@ -46,7 +40,6 @@ h3 {
   color: white;
   font-weight: 600;
 }
-
 button {
   background-color: var(--accent-color);
   color: white;
@@ -65,7 +58,6 @@ button:disabled {
   cursor: not-allowed;
   filter: brightness(0.8);
 }
-
 .hidden {
   display: none !important;
 }
@@ -80,20 +72,20 @@ button:disabled {
   flex-direction: column;
   height: 100vh;
   gap: 2rem;
+  padding: 1rem;
+  box-sizing: border-box;
 }
-
 .back-to-home-link {
   color: var(--text-secondary);
   text-decoration: none;
   font-size: 0.9rem;
-  margin-bottom: -1rem; /* Puxa os formulários um pouco para cima */
+  margin-bottom: -1rem;
   transition: color 0.2s;
 }
 .back-to-home-link:hover {
   color: var(--text-primary);
   text-decoration: underline;
 }
-
 .form-wrapper {
   background-color: var(--bg-surface);
   padding: 2rem;
@@ -120,7 +112,6 @@ button:disabled {
   border-radius: 4px;
   font-size: 1rem;
 }
-
 .auth-switch {
   margin-top: 1.5rem;
   text-align: center;
@@ -142,22 +133,20 @@ button:disabled {
 #mainAppContainer {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  min-height: 100vh;
 }
-
 .main-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.75rem 2rem;
+  padding: 0.75rem 1rem;
   background-color: var(--bg-surface);
   flex-shrink: 0;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
   z-index: 10;
 }
 .main-header .logo {
-  font-size: 1.5rem;
-  font-weight: bold;
+  font-size: 1.25rem;
 }
 #userInfo {
   display: flex;
@@ -166,116 +155,129 @@ button:disabled {
 }
 #logoutBtn {
   background-color: #c53030;
-  padding: 8px 16px;
-  font-size: 0.9rem;
+  padding: 8px 12px;
+  font-size: 0.8rem;
 }
 
 /* ============================================= */
 /* --- Lobby Dashboard --- */
 /* ============================================= */
 #lobbyDashboard {
-  padding: 2rem;
+  padding: 1rem;
   display: grid;
-  /* Cria 3 colunas, mas em telas menores elas quebram para baixo */
-  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
-  gap: 2rem;
-  /* Ocupa o restante da altura da tela, descontando o header */
-  height: calc(
-    100vh - 65px
-  ); /* Ajuste a altura do seu header se for diferente */
-  overflow-y: auto;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+@media (min-width: 768px) {
+  #lobbyDashboard {
+    padding: 2rem;
+    gap: 2rem;
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (min-width: 1280px) {
+  #lobbyDashboard {
+    grid-template-columns: 2fr 1.5fr 1fr;
+  }
 }
 
 .lobby-card {
   background-color: var(--bg-surface);
   border-radius: 8px;
-  padding: 1.5rem 2rem;
+  padding: 1rem 1.5rem;
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  overflow-y: auto; /* Permite rolagem interna se o conteúdo for grande */
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-height: 0;
 }
-
+@media (min-width: 768px) {
+  .lobby-card {
+    padding: 1.5rem 2rem;
+  }
+}
 .lobby-card h2,
 .lobby-card h3 {
   margin: 0;
   padding-bottom: 0.75rem;
   border-bottom: 1px solid var(--border-color);
-  flex-shrink: 0; /* Impede que o header do card encolha */
+  flex-shrink: 0;
   color: var(--text-primary);
 }
-
 .lobby-actions {
   display: flex;
   gap: 1rem;
 }
-
 #roomList {
   margin-top: 0;
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  overflow-y: auto;
+  max-height: 300px;
+  padding-right: 0.5rem;
+  flex-grow: 1;
+  min-height: 0;
 }
-
 .room-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
   background-color: var(--bg-main);
-  padding: 1rem 1.5rem;
+  padding: 1rem;
   border-radius: 6px;
-  gap: 1.5rem;
+  gap: 1rem;
+  flex-shrink: 0;
 }
-
 .room-info {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
   flex-grow: 1;
 }
-
 .room-name {
-  font-size: 1.1rem;
-  color: var(--text-primary);
+  font-size: 1rem;
 }
 .room-details {
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   color: var(--text-secondary);
 }
-
 #roomList button {
   font-size: 0.9rem;
   padding: 8px 16px;
   background-color: var(--success-color);
   flex-shrink: 0;
 }
-
-/* Estilos para as tabelas de dados */
 .data-table {
   width: 100%;
   border-collapse: collapse;
 }
-
 .data-table th,
 .data-table td {
   padding: 0.75rem;
   text-align: left;
   border-bottom: 1px solid var(--border-color);
-  font-size: 0.95rem;
+  font-size: 0.9rem;
 }
-
 .data-table th {
   color: var(--text-secondary);
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 600;
   text-transform: uppercase;
 }
-
 .data-table tr:last-child td {
   border-bottom: none;
 }
-
+#personalHistoryContainer .data-table th:last-child,
+#personalHistoryContainer .data-table td:last-child {
+  text-align: center;
+}
+#leaderboardContainer .data-table th:nth-child(1),
+#leaderboardContainer .data-table td:nth-child(1),
+#leaderboardContainer .data-table th:nth-child(3),
+#leaderboardContainer .data-table td:nth-child(3) {
+  text-align: center;
+}
 .data-table .win {
   color: var(--success-color);
   font-weight: bold;
@@ -286,45 +288,47 @@ button:disabled {
 .data-table .draw {
   color: var(--text-secondary);
 }
-
-/* Estilo para a info de rank do usuário */
 .user-rank-info {
-  margin-top: auto; /* Empurra para o final do card */
+  margin-top: auto;
   padding-top: 1rem;
   border-top: 1px solid var(--border-color);
   text-align: center;
-  font-size: 1.1rem;
+  font-size: 1rem;
   color: var(--text-secondary);
 }
-
 .user-rank-info strong {
   color: var(--accent-color);
   font-weight: 600;
 }
 
 /* ============================================= */
-/* --- Tela de Jogo --- */
+/* --- Tela de Jogo e Componentes --- */
 /* ============================================= */
 #gameScreen {
   flex-grow: 1;
-  padding: 2rem;
+  padding: 1rem;
   box-sizing: border-box;
-  overflow: hidden;
 }
-
 .game-layout {
   display: flex;
   height: 100%;
-  gap: 2rem;
+  gap: 1.5rem;
+  flex-direction: column;
 }
-
+@media (min-width: 1024px) {
+  #gameScreen {
+    padding: 2rem;
+  }
+  .game-layout {
+    flex-direction: row;
+  }
+}
 .game-content {
   flex-grow: 1;
   display: flex;
   flex-direction: column;
   height: 100%;
 }
-
 #game-board-container {
   display: flex;
   justify-content: center;
@@ -333,39 +337,35 @@ button:disabled {
   perspective: 1200px;
   width: 100%;
   min-height: 0;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
 }
-
 #board {
   display: grid;
-  grid-template-columns: repeat(10, 1fr); /* Seu grid de 10 colunas */
-  gap: 10px;
-
+  grid-template-columns: repeat(10, 1fr);
+  gap: 8px;
   background: linear-gradient(
     145deg,
     var(--board-frame-highlight),
     var(--board-frame-color)
   );
-  padding: 15px;
+  padding: 10px;
   border-radius: 20px;
-
   border: 2px solid rgba(255, 255, 255, 0.1);
   background-clip: padding-box;
-  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.4),
-    inset 0 0 0 2px var(--board-frame-shadow),
-    inset 0 6px 12px rgba(255, 255, 255, 0.1),
-    inset 0 -6px 12px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 15px 30px rgba(0, 0, 0, 0.4),
+    inset 0 0 0 2px var(--board-frame-shadow);
   transform: rotateX(8deg);
   transform-style: preserve-3d;
   transition: transform 0.5s ease;
 }
-
-#board:hover {
-  transform: rotateX(2deg) scale(1.02);
+@media (min-width: 768px) {
+  #board {
+    gap: 10px;
+    padding: 15px;
+  }
 }
-
 .cell {
-  width: clamp(30px, 6vh, 55px);
+  width: clamp(25px, 7vw, 55px);
   aspect-ratio: 1 / 1;
   border-radius: 50%;
   background: radial-gradient(
@@ -373,41 +373,30 @@ button:disabled {
     var(--board-hole-bg),
     var(--board-hole-shadow)
   );
-  box-shadow: inset 0px 5px 10px rgba(0, 0, 0, 0.6);
+  box-shadow: inset 0px 3px 6px rgba(0, 0, 0, 0.6);
   display: flex;
   justify-content: center;
   align-items: center;
   cursor: pointer;
   transition: all 0.2s ease;
 }
-.cell:hover {
-  background: radial-gradient(
-    circle at 30% 30%,
-    #4a5568,
-    var(--board-hole-shadow)
-  );
-}
-
 .piece {
   width: 85%;
   height: 85%;
   border-radius: 50%;
-  box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.5);
+  box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.5);
 }
-
 .piece-dropped {
   animation: drop-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
-
 @keyframes drop-in {
   from {
-    transform: translateY(-350px) scale(0.8);
+    transform: translateY(-200px) scale(0.8);
   }
   to {
     transform: translateY(0) scale(1);
   }
 }
-
 .player1 {
   background-color: var(--player1-color);
   border: 2px solid var(--player1-shadow);
@@ -420,36 +409,35 @@ button:disabled {
   background-color: var(--player3-color);
   border: 2px solid var(--player3-shadow);
 }
-
 .game-status-bar {
   margin-top: 1rem;
-  padding: 0.75rem 1.5rem;
+  padding: 0.75rem 1rem;
   background-color: var(--bg-surface);
   border-radius: 8px;
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: bold;
   color: var(--accent-color);
   text-align: center;
   align-self: center;
   flex-shrink: 0;
-  width: auto;
+  width: 100%;
   max-width: 500px;
+  box-sizing: border-box;
 }
-
-/* ============================================= */
-/* --- Sidebar e Chat --- */
-/* ============================================= */
 .sidebar {
-  width: 350px;
+  width: auto;
   flex-shrink: 0;
   background-color: var(--bg-surface);
   border-radius: 8px;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
-
+@media (min-width: 1024px) {
+  .sidebar {
+    width: 350px;
+  }
+}
 .players-list {
   padding: 1.25rem;
   border-bottom: 1px solid var(--border-color);
@@ -459,47 +447,40 @@ button:disabled {
   margin-top: 0;
   margin-bottom: 1rem;
 }
-
 .players-list-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .players-list-header h3 {
   margin: 0;
   font-size: 1.25rem;
 }
-
 #leaveRoomBtn {
   background-color: #718096;
   padding: 6px 14px;
   font-size: 0.8rem;
   font-weight: normal;
 }
-
 #leaveRoomBtn:hover {
   background-color: #4a5568;
 }
-
 #player-list-content {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
-
 .chat-container {
   flex-grow: 1;
   display: flex;
   flex-direction: column;
   padding: 1.25rem;
-  overflow: hidden;
+  min-height: 250px;
 }
 .chat-container h3 {
   margin-top: 0;
   margin-bottom: 1rem;
 }
-
 #chat-messages {
   flex-grow: 1;
   overflow-y: auto;
@@ -509,45 +490,39 @@ button:disabled {
   gap: 12px;
   padding-right: 10px;
 }
-
 .chat-message-wrapper {
   display: flex;
   width: 100%;
 }
-
 .message-bubble {
-  max-width: 75%;
+  max-width: 85%;
   padding: 8px 12px;
   border-radius: 12px;
   box-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
   word-wrap: break-word;
   position: relative;
 }
-
 .message-author {
   font-weight: bold;
   font-size: 0.85em;
   margin-bottom: 4px;
   display: block;
 }
-
 .message-content {
   margin: 0;
   line-height: 1.4;
   color: var(--text-primary);
 }
-
 .other-message {
   justify-content: flex-start;
 }
 .other-message .message-bubble {
-  background-color: var(--bg-surface);
+  background-color: #374151;
   border-top-left-radius: 2px;
 }
 .other-message .message-author {
   color: var(--accent-color);
 }
-
 .my-message {
   justify-content: flex-end;
 }
@@ -555,13 +530,11 @@ button:disabled {
   background-color: #056162;
   border-top-right-radius: 2px;
 }
-
 #chat-form {
   display: flex;
   gap: 0.5rem;
   flex-shrink: 0;
 }
-
 #chat-input {
   flex-grow: 1;
   border: 1px solid var(--border-color);
@@ -586,47 +559,40 @@ button:disabled {
 #chat-form button:hover {
   background-color: #2b6cb0;
 }
-
-/* ============================================= */
-/* --- Snackbar / Toast Notifications --- */
-/* ============================================= */
-
 #snackbar-container {
   position: fixed;
   bottom: 20px;
-  left: 20px;
-  transform: none;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 90%;
+  max-width: 500px;
   z-index: 1000;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
   gap: 10px;
   pointer-events: none;
 }
-
 .snackbar {
   padding: 12px 20px;
   border-radius: 6px;
   color: white;
   font-weight: 500;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  min-width: 250px;
+  width: 100%;
   text-align: center;
   opacity: 0;
   transform: translateY(20px);
   transition: opacity 0.4s ease, transform 0.4s ease;
 }
-
 .snackbar.show {
   opacity: 1;
   transform: translateY(0);
 }
-
 .snackbar.hiding {
   opacity: 0;
   transform: translateY(20px);
 }
-
 .snackbar.info {
   background-color: var(--accent-color);
 }
@@ -636,11 +602,6 @@ button:disabled {
 .snackbar.error {
   background-color: var(--error-color);
 }
-
-/* ============================================= */
-/* --- Modal Overlay --- */
-/* ============================================= */
-
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -651,13 +612,13 @@ button:disabled {
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 2000; /* Deve ficar acima de tudo */
+  z-index: 2000;
   backdrop-filter: blur(5px);
+  padding: 1rem;
 }
-
 .modal-content {
   background-color: var(--bg-surface);
-  padding: 2.5rem 3rem;
+  padding: 2rem;
   border-radius: 12px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
   text-align: center;
@@ -668,62 +629,58 @@ button:disabled {
   max-width: 450px;
   border: 1px solid var(--border-color);
 }
-
 .modal-content h2 {
   margin-top: 0;
   color: var(--text-primary);
+  font-size: 1.25rem;
 }
-
 .modal-content p {
   color: var(--text-secondary);
-  font-size: 1.1rem;
+  font-size: 1rem;
   margin-bottom: 1rem;
 }
-
 .modal-actions {
   display: flex;
-  justify-content: center;
-  gap: 1rem;
+  flex-direction: column;
+  gap: 0.75rem;
   margin-top: 1rem;
 }
-
-.modal-content button {
-  padding: 14px 24px;
-  font-size: 1.1rem;
-  background-color: var(--success-color);
+@media (min-width: 480px) {
+  .modal-actions {
+    flex-direction: row;
+    justify-content: center;
+  }
 }
-
+.modal-content button {
+  padding: 12px 20px;
+  font-size: 1rem;
+}
 .modal-content button:disabled {
   background-color: var(--border-color);
   cursor: not-allowed;
 }
-
 #readyCheckDeclineBtn {
   background-color: var(--error-color);
 }
 
 /* ============================================= */
-/* --- Estilização da Barra de Rolagem (Scrollbar) --- */
+/* --- Barra de Rolagem (Scrollbar) --- */
 /* ============================================= */
 ::-webkit-scrollbar {
   width: 8px;
 }
-
 ::-webkit-scrollbar-track {
   background: var(--bg-surface);
   border-radius: 10px;
 }
-
 ::-webkit-scrollbar-thumb {
   background-color: var(--border-color);
   border-radius: 10px;
   border: 2px solid var(--bg-surface);
 }
-
 ::-webkit-scrollbar-thumb:hover {
   background-color: var(--text-secondary);
 }
-
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--border-color) var(--bg-surface);
