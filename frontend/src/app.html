@@ -78,18 +78,6 @@
             <div id="game-info" class="game-status-bar"></div>
 
             <!-- Container para a votação de "Jogar Novamente" -->
-            <div id="rematch-container" class="game-status-bar hidden">
-              <p id="rematch-status"></p>
-              <div id="rematch-actions">
-                <button id="rematch-accept-btn">Jogar Novamente</button>
-                <button
-                  id="rematch-decline-btn"
-                  style="background-color: var(--error-color)"
-                >
-                  Sair para o Lobby
-                </button>
-              </div>
-            </div>
           </main>
 
           <!-- Coluna da Direita: Chat e Jogadores -->
@@ -97,10 +85,15 @@
             <div class="players-list">
               <div class="players-list-header">
                 <h3>Jogadores</h3>
-                <button id="leaveRoomBtn" class="hidden">Sair da sala</button>
+                <!-- NOVO: Container para agrupar as ações da direita -->
+                <div class="players-list-actions">
+                  <button id="leaveRoomBtn" class="hidden">Sair da sala</button>
+                  <div id="roomNameDisplay" class="hidden"></div>
+                </div>
               </div>
+
               <div id="player-list-content">
-                <!-- Lista de jogadores e placar gerada via JS -->
+            
               </div>
             </div>
             <div class="chat-container">
@@ -116,7 +109,18 @@
                   autocomplete="off"
                   required
                 />
-                <button type="submit" title="Enviar"><span>→</span></button>
+                <button type="submit" title="Enviar">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    width="22"
+                    height="22"
+                    fill="currentColor"
+                  >
+                    <path d="M0 0h24v24H0z" fill="none" />
+                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                  </svg>
+                </button>
               </form>
             </div>
           </aside>
@@ -136,6 +140,18 @@
           <button id="readyCheckBtn">Estou Pronto!</button>
           <!-- NOVO: Botão para sair -->
           <button id="readyCheckDeclineBtn">Sair da Sala</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- NOVO: Modal para a votação de revanche -->
+    <div id="rematchModal" class="modal-overlay hidden">
+      <div class="modal-content">
+        <h2 id="rematchWinnerStatus">O Vencedor é Nicolas!</h2>
+        <p id="rematchVoteStatus">Tempo para votar: 30s | Votos: 0/3</p>
+        <div class="modal-actions">
+          <button id="rematchModalAcceptBtn">Jogar Novamente</button>
+          <button id="rematchModalDeclineBtn">Sair para o Lobby</button>
         </div>
       </div>
     </div>

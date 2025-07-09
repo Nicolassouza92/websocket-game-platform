@@ -1,0 +1,94 @@
+/* frontend/src/how-to-play.css */
+
+.rules-container {
+  background-color: var(--bg-surface);
+  padding: 2rem 3rem;
+  border-radius: 8px;
+  max-width: 900px;
+  margin: 2rem auto;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+}
+
+.rule-section {
+  margin-bottom: 2.5rem;
+}
+
+.rule-section h2 {
+  border-bottom: 2px solid var(--accent-color);
+  padding-bottom: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.rule-section p,
+.rule-section li {
+  font-size: 1.1rem;
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+
+.rule-section ol,
+.rule-section ul {
+  padding-left: 25px;
+}
+
+/* NOVO: Espaçamento entre os itens da lista de dicas */
+.rule-section ul li {
+  margin-bottom: 0.75rem;
+}
+
+.rule-section strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* --- ESTILOS PARA AS IMAGENS DE EXEMPLO --- */
+.example-wrapper {
+  margin-top: 2rem;
+  text-align: center;
+}
+
+.example-wrapper h3 {
+  color: var(--text-primary);
+}
+
+.example-wrapper p {
+  font-size: 1rem;
+  margin-bottom: 1rem;
+}
+
+.example-image-container {
+  max-width: 400px; /* Limita o tamanho da imagem em telas grandes */
+  margin: 0 auto; /* Centraliza o container */
+}
+
+.example-image-container img {
+  width: 100%; /* Faz a imagem ocupar todo o espaço do container */
+  height: auto; /* Mantém a proporção da imagem */
+  border-radius: 12px; /* Cantos arredondados, combinando com o tabuleiro */
+  border: 3px solid var(--board-frame-shadow);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.4);
+}
+/* --- FIM DOS ESTILOS DE IMAGEM --- */
+
+.cta-section {
+  text-align: center;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.play-now-btn {
+  display: inline-block;
+  background-color: var(--success-color);
+  color: white;
+  text-decoration: none;
+  font-size: 1.2rem;
+  font-weight: 600;
+  padding: 0.8rem 2rem;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  margin-top: 1rem;
+}
+
+.play-now-btn:hover {
+  filter: brightness(1.15);
+}
