@@ -7,6 +7,9 @@ document.addEventListener("DOMContentLoaded", () => {
     socket: null,
   };
 
+  // --- Adicionada uma flag para controle de mensagens de fechamento ---
+  let roomClosedByServer = false;
+
   // --- Referências aos Elementos da UI ---
   const elements = {
     authContainer: document.getElementById("authContainer"),
@@ -463,6 +466,10 @@ document.addEventListener("DOMContentLoaded", () => {
   function connectToGame(roomCode) {
     if (state.socket) state.socket.close();
     localStorage.setItem("currentRoomCode", roomCode);
+
+    // Reseta a flag ao conectar
+    roomClosedByServer = false;
+
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const host = window.location.host;
     state.socket = new WebSocket(`${protocol}//${host}?roomCode=${roomCode}`);
@@ -494,7 +501,9 @@ document.addEventListener("DOMContentLoaded", () => {
           displayChatMessage(payload.username, payload.text);
           break;
         case "ROOM_CLOSED":
+          // ATUALIZAÇÃO: Informa o motivo e ativa a flag
           showSnackbar(payload.message, "error", 5000);
+          roomClosedByServer = true;
           break;
         case "INFO_MESSAGE":
           showSnackbar(payload.message, "info", 5000);
@@ -505,7 +514,10 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     state.socket.onclose = async () => {
-      showSnackbar("Retornando ao lobby.");
+      // ATUALIZAÇÃO: Verifica a flag antes de mostrar a mensagem genérica
+      if (!roomClosedByServer) {
+        showSnackbar("Retornando ao lobby: Você se desconectou.");
+      }
       state.socket = null;
       state.currentRoom = null;
       localStorage.removeItem("currentRoomCode");
