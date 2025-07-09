@@ -23,6 +23,8 @@ const MAX_INACTIVE_TURNS = 2;
 const REMATCH_VOTE_DURATION_MS = 30000;
 const rematchTimers = new Map<string, NodeJS.Timeout>();
 
+// --- Funções Principais Exportadas ---
+
 export function createRoom(creator: Player): GameState {
   const roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
   const initialState: GameState = {
@@ -37,10 +39,7 @@ export function createRoom(creator: Player): GameState {
     currentPlayerIndex: 0,
     status: "waiting",
     winner: undefined,
-
     sessionWins: new Map<PlayerId, number>(),
-    // NOVO: Inicializa o array de votos de pronto
-
     readyVotes: [],
     rematchVotes: [],
   };
@@ -115,6 +114,51 @@ export function handlePlayerConnection(
   attachMessageHandlers(ws, roomCode, player);
 }
 
+// --- Funções de Lógica de Jogo e Sala (Unificadas) ---
+
+function attachMessageHandlers(
+  ws: WebSocket,
+  roomCode: string,
+  player: Player
+) {
+  ws.on("message", async (message: string) => {
+    try {
+      const parsedMessage = JSON.parse(message);
+      switch (parsedMessage.type) {
+        case "VOTE_READY":
+          handleReadyVote(ws, roomCode, player.id);
+          break;
+        case "MAKE_MOVE":
+          await handleMakeMove(
+            ws,
+            roomCode,
+            player.id,
+            parsedMessage.payload.column
+          );
+          break;
+        case "LEAVE_ROOM":
+          handlePlayerLeave(ws, roomCode, player.id);
+          break;
+        case "VOTE_REMATCH":
+          handleRematchVote(ws, roomCode, player.id);
+          break;
+        case "SEND_CHAT_MESSAGE":
+          handleChatMessage(roomCode, player, parsedMessage.payload.text);
+          break;
+        default:
+          console.warn(
+            `[GameService] Tipo de mensagem desconhecido: ${parsedMessage.type}`
+          );
+      }
+    } catch (error) {
+      console.error("[GameService] Erro ao processar mensagem:", error);
+    }
+  });
+  ws.on("close", () => {
+    handlePlayerDisconnection(ws);
+  });
+}
+
 function handlePlayerLeave(
   ws: WebSocket | null,
   roomCode: string,
@@ -130,13 +174,17 @@ function handlePlayerLeave(
   );
 
   const wasHost = playerId === room.hostId;
+  const statusBeforeLeave = room.status;
 
+  // Remove os dados do jogador
   room.players.delete(playerId);
   room.playerOrder = room.playerOrder.filter((id) => id !== playerId);
+  room.sessionWins.delete(playerId); // Remove do placar de sessão
   if (ws) {
     clientToRoomMap.delete(ws);
   }
 
+  // Se a sala ficar vazia, apaga-a
   if (room.players.size === 0) {
     console.log(`[GameService] Sala ${roomCode} ficou vazia. Removendo.`);
     clearTurnTimer(roomCode);
@@ -146,6 +194,7 @@ function handlePlayerLeave(
     return;
   }
 
+  // Se o host saiu, promove um novo host
   if (wasHost) {
     room.hostId = room.playerOrder[0];
     const newHost = room.players.get(room.hostId);
@@ -159,15 +208,24 @@ function handlePlayerLeave(
     }
   }
 
+  // Se a saída foi durante a votação de revanche, processa os votos restantes
+  if (statusBeforeLeave === "finished") {
+    console.log(`[GameService] Jogador saiu durante a votação. Processando...`);
+    processRematchVotes(room);
+    if (ws && ws.readyState === WebSocket.OPEN) ws.close();
+    return;
+  }
+
+  // Decide o que fazer com base no estado anterior e no número de jogadores
   if (
-    room.status === "readyCheck" ||
-    (room.status === "playing" && room.players.size < 2)
+    statusBeforeLeave === "readyCheck" ||
+    (statusBeforeLeave === "playing" && room.players.size < 2)
   ) {
     console.log(
       `[GameService] Jogador saiu, número de jogadores insuficiente. Sala ${roomCode} voltando para o estado de espera.`
     );
     resetRoomToWaiting(room);
-  } else if (room.status === "playing") {
+  } else if (statusBeforeLeave === "playing") {
     console.log(
       `[GameService] Restam ${room.players.size} jogadores na sala ${roomCode}. O jogo continua.`
     );
@@ -189,12 +247,97 @@ function handlePlayerLeave(
   }
 }
 
-function processRematchVotes(room: GameState) {
-  const roomCode = room.roomCode;
+function handlePlayerDisconnection(ws: WebSocket) {
+  const connectionInfo = clientToRoomMap.get(ws);
+  if (!connectionInfo) return;
+  const { roomCode, playerId } = connectionInfo;
+  const room = rooms.get(roomCode);
+  if (!room) return;
+  const disconnectedPlayer = room.players.get(playerId);
+  if (!disconnectedPlayer) return;
+
   console.log(
-    `[GameService] Votação de revanche encerrada na sala ${roomCode}.`
+    `[GameService] Jogador ${disconnectedPlayer.username} desconectou. Iniciando timer de remoção.`
   );
-  clearRematchTimer(roomCode);
+  disconnectedPlayer.ws = null;
+  clientToRoomMap.delete(ws);
+  broadcastRoomState(room);
+
+  const timeout = setTimeout(() => {
+    const currentRoom = rooms.get(roomCode);
+    if (!currentRoom) return;
+    const playerToRemove = currentRoom.players.get(playerId);
+    if (playerToRemove && playerToRemove.ws === null) {
+      console.log(
+        `[GameService] Tempo de reconexão para ${playerToRemove.username} esgotou. Removendo-o.`
+      );
+      broadcastToRoom(roomCode, {
+        type: "INFO_MESSAGE",
+        payload: {
+          message: `${playerToRemove.username} não se reconectou a tempo e foi removido.`,
+        },
+      });
+      handlePlayerLeave(null, roomCode, playerId);
+    }
+  }, RECONNECTION_TIMEOUT_MS);
+  reconnectionTimers.set(playerId, timeout);
+}
+
+async function handleMakeMove(
+  ws: WebSocket,
+  roomCode: string,
+  playerId: PlayerId,
+  column: number
+) {
+  const room = rooms.get(roomCode);
+  if (!room) return;
+  const playerState = room.players.get(playerId);
+  if (!playerState) return;
+
+  try {
+    const newState = makeMove(room, playerId, column);
+    playerState.inactiveTurns = 0;
+
+    if (newState.status === "finished") {
+      clearTurnTimer(roomCode);
+      delete newState.turnEndsAt;
+
+      if (newState.winner) {
+        const currentWins = newState.sessionWins.get(newState.winner) || 0;
+        newState.sessionWins.set(newState.winner, currentWins + 1);
+        console.log(
+          `[GameService] Jogador ${newState.winner} agora tem ${
+            currentWins + 1
+          } vitórias na sala ${roomCode}.`
+        );
+      }
+
+      try {
+        await Match.record(
+          newState.winner ?? null,
+          newState.playerOrderHistory
+        );
+      } catch (dbError) {
+        console.error(
+          `[GameService] Falha ao gravar a partida ${roomCode} no DB:`,
+          dbError
+        );
+      }
+      startRematchVotePhase(newState);
+    } else {
+      startTurnTimer(newState);
+    }
+
+    rooms.set(roomCode, newState);
+    broadcastRoomState(newState);
+  } catch (error: any) {
+    console.error(`[GameService] Jogada inválida: ${error.message}`);
+    sendError(ws, error.message);
+  }
+}
+
+function processRematchVotes(room: GameState) {
+  clearRematchTimer(room.roomCode);
 
   const playersWhoVoted = new Set(room.rematchVotes);
   const playersToRemove: PlayerState[] = [];
@@ -206,47 +349,65 @@ function processRematchVotes(room: GameState) {
 
   if (playersToRemove.length > 0) {
     playersToRemove.forEach((player) => {
-      broadcastToRoom(roomCode, {
+      broadcastToRoom(room.roomCode, {
         type: "INFO_MESSAGE",
         payload: {
           message: `${player.username} não votou e foi removido da sala.`,
         },
       });
-      handlePlayerLeave(player.ws, roomCode, player.id);
+      handlePlayerLeave(player.ws, room.roomCode, player.id);
     });
   }
 
-  const finalRoomState = rooms.get(roomCode);
+  const finalRoomState = rooms.get(room.roomCode);
   if (!finalRoomState) return;
 
-  const remainingVoters = Array.from(finalRoomState.players.keys()).filter(
-    (id) => playersWhoVoted.has(id)
-  );
   const allRemainingVoted =
-    remainingVoters.length === finalRoomState.players.size;
+    finalRoomState.rematchVotes.length === finalRoomState.players.size;
 
-  if (allRemainingVoted && finalRoomState.players.size >= 2) {
-    if (finalRoomState.players.size === 3) {
+  if (allRemainingVoted && finalRoomState.players.size > 0) {
+    if (finalRoomState.players.size >= 2) {
       resetGameForRematch(finalRoomState);
     } else {
-      broadcastToRoom(roomCode, {
-        type: "INFO_MESSAGE",
-        payload: {
-          message: `Revanche aceita! Aguardando mais um jogador para começar.`,
-        },
-      });
       resetRoomToWaiting(finalRoomState);
     }
-  } else {
-    broadcastToRoom(roomCode, {
+  } else if (!allRemainingVoted) {
+    broadcastToRoom(room.roomCode, {
       type: "INFO_MESSAGE",
       payload: {
-        message: `A revanche não foi aceita por todos. A sala voltará a aguardar novos jogadores.`,
+        message: `A revanche não foi unânime. A sala aguardará novos jogadores.`,
       },
     });
     resetRoomToWaiting(finalRoomState);
   }
 }
+
+function handleRematchVote(
+  ws: WebSocket,
+  roomCode: string,
+  playerId: PlayerId
+) {
+  const room = rooms.get(roomCode);
+  if (
+    !room ||
+    room.status !== "finished" ||
+    room.rematchVotes.includes(playerId)
+  ) {
+    return;
+  }
+  console.log(
+    `[GameService] Jogador ${playerId} votou para revanche na sala ${roomCode}.`
+  );
+  room.rematchVotes.push(playerId);
+
+  if (room.rematchVotes.length === room.players.size) {
+    processRematchVotes(room);
+  } else {
+    broadcastRoomState(room);
+  }
+}
+
+// --- Funções Auxiliares de Setup e Timers ---
 
 function clearTurnTimer(roomCode: string) {
   const existingTimer = turnTimers.get(roomCode);
@@ -299,7 +460,7 @@ function startTurnTimer(room: GameState) {
         }
       } else {
         console.log(
-          `[GameService] Pulando turno do jogador desconectado ${inactivePlayerState.username} sem penalidade.`
+          `[GameService] Pulando turno do jogador desconectado ${inactivePlayerState.username}.`
         );
       }
     }
@@ -313,49 +474,6 @@ function startTurnTimer(room: GameState) {
   turnTimers.set(room.roomCode, timer);
 }
 
-function attachMessageHandlers(
-  ws: WebSocket,
-  roomCode: string,
-  player: Player
-) {
-  ws.on("message", async (message: string) => {
-    try {
-      const parsedMessage = JSON.parse(message);
-      switch (parsedMessage.type) {
-        case "VOTE_READY":
-          handleReadyVote(ws, roomCode, player.id);
-          break;
-        case "MAKE_MOVE":
-          await handleMakeMove(
-            ws,
-            roomCode,
-            player.id,
-            parsedMessage.payload.column
-          );
-          break;
-        case "LEAVE_ROOM":
-          handlePlayerLeave(ws, roomCode, player.id);
-          break;
-        case "VOTE_REMATCH":
-          handleRematchVote(ws, roomCode, player.id);
-          break;
-        case "SEND_CHAT_MESSAGE":
-          handleChatMessage(roomCode, player, parsedMessage.payload.text);
-          break;
-        default:
-          console.warn(
-            `[GameService] Tipo de mensagem desconhecido: ${parsedMessage.type}`
-          );
-      }
-    } catch (error) {
-      console.error("[GameService] Erro ao processar mensagem:", error);
-    }
-  });
-  ws.on("close", () => {
-    handlePlayerDisconnection(ws);
-  });
-}
-
 function handleChatMessage(roomCode: string, sender: Player, text: string) {
   if (!text || text.length > 200) return;
   const messagePayload = {
@@ -365,151 +483,9 @@ function handleChatMessage(roomCode: string, sender: Player, text: string) {
   broadcastToRoom(roomCode, messagePayload);
 }
 
-function handlePlayerLeave(
-  ws: WebSocket | null,
-  roomCode: string,
-  playerId: PlayerId
-) {
-  const room = rooms.get(roomCode);
-  if (!room) return;
-  const leavingPlayer = room.players.get(playerId);
-  if (!leavingPlayer) return;
-
-  console.log(
-    `[GameService] Jogador ${leavingPlayer.username} está saindo/sendo removido da sala ${roomCode}.`
-  );
-
-  room.sessionWins.delete(playerId);
-
-  const statusBeforeLeave = room.status;
-
-  if (playerId === room.hostId) {
-    console.log(
-      `[GameService] Host (${leavingPlayer.username}) saiu. Fechando a sala ${roomCode}.`
-    );
-    broadcastToRoom(roomCode, {
-      type: "ROOM_CLOSED",
-      payload: {
-        message: `O host (${leavingPlayer.username}) encerrou a sala.`,
-      },
-    });
-    room.players.forEach((p) => {
-      if (p.id !== playerId && p.ws && p.ws.readyState === WebSocket.OPEN) {
-        p.ws.close();
-      }
-    });
-    clearTurnTimer(roomCode);
-    clearRematchTimer(roomCode);
-    rooms.delete(roomCode);
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.close();
-    }
-    return;
-  }
-
-  room.players.delete(playerId);
-  room.playerOrder = room.playerOrder.filter((id) => id !== playerId);
-  if (ws) {
-    clientToRoomMap.delete(ws);
-  }
-
-  if (room.players.size === 0) {
-    console.log(`[GameService] Sala ${roomCode} ficou vazia. Removendo.`);
-    clearTurnTimer(roomCode);
-    clearRematchTimer(roomCode);
-    rooms.delete(roomCode);
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.close();
-    }
-    return;
-  }
-
-  // NOVO: Verifica se a saída do jogador deve resolver a votação de revanche
-  if (statusBeforeLeave === "finished") {
-    console.log(
-      `[GameService] Jogador saiu durante a votação de revanche. Processando votos restantes...`
-    );
-    // O jogador que saiu é tratado como um voto "não".
-    // Isso vai remover o jogador que saiu e colocar a sala em modo de espera,
-    // pois o número de votos (2) será igual ao número de jogadores restantes (2).
-    processRematchVotes(room);
-    // A função processRematchVotes já cuida do broadcast e do reset da sala, então podemos sair.
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.close();
-    }
-    return;
-  }
-
-  // ATUALIZADO: Se um jogador sair durante a verificação de prontidão, a sala volta a esperar.
-  if (
-    statusBeforeLeave === "readyCheck" ||
-    (statusBeforeLeave === "playing" && room.players.size < 2)
-  ) {
-    console.log(
-      `[GameService] Jogador saiu, número de jogadores insuficiente. Sala ${roomCode} voltando para o estado de espera.`
-    );
-    resetRoomToWaiting(room);
-  } else if (statusBeforeLeave === "playing") {
-    console.log(
-      `[GameService] Restam 2 jogadores na sala ${roomCode}. O jogo continua.`
-    );
-    room.currentPlayerIndex %= room.playerOrder.length;
-    broadcastToRoom(roomCode, {
-      type: "INFO_MESSAGE",
-      payload: {
-        message: `${leavingPlayer.username} saiu. O jogo continua entre os 2 restantes.`,
-      },
-    });
-    startTurnTimer(room);
-    broadcastRoomState(room);
-  } else {
-    broadcastRoomState(room);
-  }
-
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.close();
-  }
-}
-
-function handlePlayerDisconnection(ws: WebSocket) {
-  const connectionInfo = clientToRoomMap.get(ws);
-  if (!connectionInfo) return;
-  const { roomCode, playerId } = connectionInfo;
-  const room = rooms.get(roomCode);
-  if (!room) return;
-  const disconnectedPlayer = room.players.get(playerId);
-  if (!disconnectedPlayer || !room.players.has(playerId)) return;
-
-  console.log(
-    `[GameService] Jogador ${disconnectedPlayer.username} desconectou. Iniciando timer de remoção.`
-  );
-  disconnectedPlayer.ws = null;
-  clientToRoomMap.delete(ws);
-  broadcastRoomState(room);
-
-  const timeout = setTimeout(() => {
-    const currentRoom = rooms.get(roomCode);
-    if (!currentRoom) return;
-    const playerToRemove = currentRoom.players.get(playerId);
-    if (playerToRemove && playerToRemove.ws === null) {
-      console.log(
-        `[GameService] Tempo de reconexão para ${playerToRemove.username} esgotou. Removendo-o.`
-      );
-      broadcastToRoom(roomCode, {
-        type: "INFO_MESSAGE",
-        payload: {
-          message: `${playerToRemove.username} não se reconectou a tempo e foi removido.`,
-        },
-      });
-      handlePlayerLeave(null, roomCode, playerId);
-    }
-  }, RECONNECTION_TIMEOUT_MS);
-  reconnectionTimers.set(playerId, timeout);
-}
-
 function startGame(room: GameState) {
   console.log(
-    `[GameService] Todos prontos. Iniciando jogo na sala ${room.roomCode}.`
+    `[GameService] Todos os jogadores estão prontos. Iniciando jogo na sala ${room.roomCode}.`
   );
   room.status = "playing";
   room.currentPlayerIndex = 0;
@@ -527,7 +503,6 @@ function handleReadyVote(ws: WebSocket, roomCode: string, playerId: PlayerId) {
   ) {
     return;
   }
-
   console.log(
     `[GameService] Jogador ${playerId} votou como pronto na sala ${roomCode}.`
   );
@@ -540,64 +515,9 @@ function handleReadyVote(ws: WebSocket, roomCode: string, playerId: PlayerId) {
   }
 }
 
-async function handleMakeMove( // Tornar async
-  ws: WebSocket,
-  roomCode: string,
-  playerId: PlayerId,
-  column: number
-) {
-  const room = rooms.get(roomCode);
-  if (!room) return;
-  const playerState = room.players.get(playerId);
-  if (!playerState) return;
-
-  try {
-    const newState = makeMove(room, playerId, column);
-    playerState.inactiveTurns = 0;
-
-    if (newState.status === "finished") {
-      clearTurnTimer(roomCode);
-      delete newState.turnEndsAt;
-
-      // NOVO: Lógica para incrementar o placar da sessão
-      if (newState.winner) {
-        const currentWins = newState.sessionWins.get(newState.winner) || 0;
-        newState.sessionWins.set(newState.winner, currentWins + 1);
-        console.log(
-          `[GameService] Jogador ${newState.winner} agora tem ${
-            currentWins + 1
-          } vitórias na sala ${roomCode}.`
-        );
-      }
-
-      try {
-        await Match.record(
-          newState.winner ?? null,
-          newState.playerOrderHistory
-        );
-      } catch (dbError) {
-        console.error(
-          `[GameService] Falha ao gravar a partida ${roomCode} no DB:`,
-          dbError
-        );
-      }
-      startRematchVotePhase(newState);
-    } else {
-      startTurnTimer(newState);
-    }
-
-    // ATENÇÃO: movi o set para depois de todas as modificações no estado
-    rooms.set(roomCode, newState);
-    broadcastRoomState(newState);
-  } catch (error: any) {
-    console.error(`[GameService] Jogada inválida: ${error.message}`);
-    sendError(ws, error.message);
-  }
-}
-
 function startRematchVotePhase(room: GameState) {
   console.log(
-    `[GameService] Jogo finalizado na sala ${room.roomCode}. Iniciando votação de revanche.`
+    `[GameService] Jogo finalizado. Iniciando votação de revanche na sala ${room.roomCode}.`
   );
   room.rematchVoteEndsAt = Date.now() + REMATCH_VOTE_DURATION_MS;
   room.rematchVotes = [];
@@ -610,56 +530,6 @@ function startRematchVotePhase(room: GameState) {
   }, REMATCH_VOTE_DURATION_MS);
 
   rematchTimers.set(room.roomCode, timer);
-}
-
-function processRematchVotes(room: GameState) {
-  const roomCode = room.roomCode;
-  console.log(`[GameService] Votação encerrada na sala ${roomCode}.`);
-  clearRematchTimer(roomCode); // O timer é sempre limpo aqui
-
-  const playersWhoVoted = new Set(room.rematchVotes);
-  const playersToRemove: PlayerState[] = [];
-
-  room.players.forEach((player) => {
-    if (!playersWhoVoted.has(player.id)) {
-      playersToRemove.push(player);
-    }
-  });
-
-  if (playersToRemove.length > 0) {
-    playersToRemove.forEach((player) => {
-      broadcastToRoom(roomCode, {
-        type: "INFO_MESSAGE",
-        payload: {
-          message: `${player.username} não votou e foi removido da sala.`,
-        },
-      });
-      // Importante: A chamada para handlePlayerLeave aqui é recursiva e segura
-      handlePlayerLeave(player.ws, roomCode, player.id);
-    });
-  }
-
-  const finalRoomState = rooms.get(roomCode);
-  if (!finalRoomState) {
-    console.log(
-      `[GameService] Sala ${roomCode} não existe mais após a votação.`
-    );
-    return;
-  }
-
-  const remainingPlayersCount = finalRoomState.players.size;
-  // A condição é que todos os jogadores *restantes* tenham votado
-  const allRemainingVoted =
-    finalRoomState.rematchVotes.length === remainingPlayersCount;
-
-  if (allRemainingVoted && remainingPlayersCount > 0) {
-    if (remainingPlayersCount === 3) {
-      resetGameForRematch(finalRoomState);
-    } else {
-      // Se forem 2 ou 1, a sala volta a esperar
-      resetRoomToWaiting(finalRoomState);
-    }
-  }
 }
 
 function resetRoomToWaiting(room: GameState) {
@@ -687,13 +557,15 @@ function resetRoomToWaiting(room: GameState) {
 }
 
 function resetGameForRematch(room: GameState) {
-  console.log(`[GameService] Reiniciando jogo na sala ${room.roomCode}.`);
+  console.log(
+    `[GameService] Todos concordaram! Reiniciando jogo na sala ${room.roomCode}.`
+  );
   room.status = "playing";
   room.board = Array(9)
     .fill(null)
     .map(() => Array(10).fill(null));
   room.currentPlayerIndex = 0;
-  room.winner = undefined;
+  delete room.winner;
   room.rematchVotes = [];
   delete room.rematchVoteEndsAt;
   room.playerOrderHistory = [...room.playerOrder];
@@ -701,34 +573,6 @@ function resetGameForRematch(room: GameState) {
 
   startTurnTimer(room);
   broadcastRoomState(room);
-}
-
-function handleRematchVote(
-  ws: WebSocket,
-  roomCode: string,
-  playerId: PlayerId
-) {
-  const room = rooms.get(roomCode);
-  if (
-    !room ||
-    room.status !== "finished" ||
-    room.rematchVotes.includes(playerId)
-  ) {
-    return;
-  }
-
-  console.log(
-    `[GameService] Jogador ${playerId} votou para revanche na sala ${roomCode}.`
-  );
-  room.rematchVotes.push(playerId);
-
-  // A condição para processar os votos é se o número de votos é igual ao número de jogadores
-  if (room.rematchVotes.length === room.players.size) {
-    // Apenas chama a função principal, que já lida com a limpeza do timer
-    processRematchVotes(room);
-  } else {
-    broadcastRoomState(room);
-  }
 }
 
 function broadcastToRoom(roomCode: string, message: object) {
@@ -782,10 +626,7 @@ function getGameStateForClient(room: GameState): GameStateForClient {
     status: room.status,
     winner: room.winner,
     turnEndsAt: room.turnEndsAt,
-
-    // ATUALIZADO: Inclui os votos de pronto no estado enviado ao cliente
     sessionWins: Object.fromEntries(room.sessionWins.entries()),
-
     readyVotes: room.readyVotes,
     rematchVotes: room.rematchVotes,
     rematchVoteEndsAt: room.rematchVoteEndsAt,
