@@ -4,46 +4,39 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>3 em Linha - Multiplayer</title>
-    <!-- Adicione o link para o seu arquivo de estilos -->
     <link rel="stylesheet" href="app-style.css" />
   </head>
   <body>
-    <!-- Container para a tela de autenticação (aparece quando deslogado) -->
+    <!-- Container de Autenticação (quando deslogado) -->
     <div id="authContainer">
-      <!-- NOVO: Adicionado link para voltar -->
       <a href="index.html" class="back-to-home-link"
         >← Voltar para a Página Inicial</a
       >
-
-      <!-- ATUALIZADO: Adicionado ID 'registerWrapper' -->
-      <div class="form-wrapper" id="registerWrapper">
+      <div class="form-wrapper hidden" id="registerWrapper">
         <h2>Registro</h2>
         <form id="registerForm">
           <input type="text" name="username" placeholder="Usuário" required />
           <input type="password" name="password" placeholder="Senha" required />
           <button type="submit">Registrar</button>
         </form>
-        <!-- NOVO: Link para alternar para o login -->
         <p class="auth-switch">
           Já tem uma conta? <a href="#login">Faça o login</a>
         </p>
       </div>
-      <!-- ATUALIZADO: Adicionado ID 'loginWrapper' -->
-      <div class="form-wrapper" id="loginWrapper">
+      <div class="form-wrapper hidden" id="loginWrapper">
         <h2>Login</h2>
         <form id="loginForm">
           <input type="text" name="username" placeholder="Usuário" required />
           <input type="password" name="password" placeholder="Senha" required />
           <button type="submit">Login</button>
         </form>
-        <!-- NOVO: Link para alternar para o registro -->
         <p class="auth-switch">
           Não tem uma conta? <a href="#register">Registre-se</a>
         </p>
       </div>
     </div>
 
-    <!-- Container principal da aplicação (aparece quando logado) -->
+    <!-- Container Principal da Aplicação (quando logado) -->
     <div id="mainAppContainer" class="hidden">
       <header class="main-header">
         <div class="logo">3 em Linha</div>
@@ -53,31 +46,58 @@
         </div>
       </header>
 
-      <!-- Seção do Lobby (mostrada quando logado e fora de uma sala) -->
-      <div id="lobby">
-        <h2>Lobby</h2>
-        <div class="lobby-actions">
-          <button id="createRoomBtn">Criar Nova Sala</button>
-          <button id="refreshRoomsBtn">Atualizar Lista</button>
+      <!-- Dashboard do Lobby (visível quando fora de uma sala) -->
+      <div id="lobbyDashboard" class="hidden">
+        <!-- Coluna 1: Salas de Jogo -->
+        <div class="lobby-card">
+          <h2>Salas de Jogo</h2>
+          <div class="lobby-actions">
+            <button id="createRoomBtn">Criar Nova Sala</button>
+            <button id="refreshRoomsBtn">Atualizar</button>
+          </div>
+          <div id="roomList">Carregando...</div>
         </div>
-        <h3>Salas Disponíveis</h3>
-        <div id="roomList">Carregando...</div>
+
+        <!-- Coluna 2: Histórico Pessoal -->
+        <div class="lobby-card">
+          <h3>Meu Histórico</h3>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Jogadores</th>
+                <th>Resultado</th>
+              </tr>
+            </thead>
+            <tbody id="personalHistoryContent"></tbody>
+          </table>
+        </div>
+
+        <!-- Coluna 3: Ranking -->
+        <div class="lobby-card">
+          <h3>Ranking Global</h3>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Jogador</th>
+                <th>Vitórias</th>
+              </tr>
+            </thead>
+            <tbody id="leaderboardContent"></tbody>
+          </table>
+          <div id="userRank" class="user-rank-info hidden"></div>
+        </div>
       </div>
 
-      <!-- Seção do Jogo (mostrada quando dentro de uma sala) -->
+      <!-- Tela de Jogo (visível quando dentro de uma sala) -->
       <div id="gameScreen" class="hidden">
-        <!-- Este é o novo container que organiza o jogo e o chat lado a lado -->
         <div class="game-layout">
           <!-- Coluna da Esquerda: O Jogo -->
           <main class="game-content">
             <div id="game-board-container">
-              <div id="board">
-                <!-- Células geradas via JS -->
-              </div>
+              <div id="board"><!-- Células geradas via JS --></div>
             </div>
             <div id="game-info" class="game-status-bar"></div>
-
-            <!-- Container para a votação de "Jogar Novamente" -->
             <div id="rematch-container" class="game-status-bar hidden">
               <p id="rematch-status"></p>
               <div id="rematch-actions">
@@ -91,7 +111,6 @@
               </div>
             </div>
           </main>
-
           <!-- Coluna da Direita: Chat e Jogadores -->
           <aside class="sidebar">
             <div class="players-list">
@@ -99,15 +118,11 @@
                 <h3>Jogadores</h3>
                 <button id="leaveRoomBtn" class="hidden">Sair da sala</button>
               </div>
-              <div id="player-list-content">
-                <!-- Lista de jogadores e placar gerada via JS -->
-              </div>
+              <div id="player-list-content"><!-- Lista de jogadores --></div>
             </div>
             <div class="chat-container">
               <h3>Chat da Sala</h3>
-              <div id="chat-messages">
-                <!-- Mensagens geradas via JS -->
-              </div>
+              <div id="chat-messages"><!-- Mensagens --></div>
               <form id="chat-form">
                 <input
                   type="text"
@@ -124,25 +139,21 @@
       </div>
     </div>
 
-    <!-- NOVO: Modal de verificação de prontidão -->
+    <!-- Modal de verificação de prontidão -->
     <div id="readyCheckModal" class="modal-overlay hidden">
       <div class="modal-content">
         <h2>A Partida pode começar?</h2>
         <p id="readyCheckStatus">
           A partida começará quando todos estiverem prontos.
         </p>
-        <!-- ATUALIZADO: Botões dentro de um container -->
         <div class="modal-actions">
           <button id="readyCheckBtn">Estou Pronto!</button>
-          <!-- NOVO: Botão para sair -->
           <button id="readyCheckDeclineBtn">Sair da Sala</button>
         </div>
       </div>
     </div>
 
     <div id="snackbar-container"></div>
-
-    <!-- O script principal da aplicação -->
     <script src="App.js"></script>
   </body>
 </html>

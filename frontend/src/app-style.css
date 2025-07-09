@@ -15,7 +15,6 @@
   --board-frame-color: #4a90a4; /* Azul mais escuro para a moldura */
   --board-frame-shadow: #2c5f75; /* Sombra da moldura */
   --board-frame-highlight: #6bb6cc; /* Destaque da moldura */
-  --board-web-color: #e5d9c6; /* A cor bege da "teia" entre os buracos */
   --board-hole-bg: #2d3748; /* Fundo do buraco, um pouco mais claro que o fundo principal */
   --board-hole-shadow: #1a202c; /* Sombra interna dos buracos (escura) */
 
@@ -83,7 +82,6 @@ button:disabled {
   gap: 2rem;
 }
 
-/* NOVO: Estilo para o link de "Voltar" */
 .back-to-home-link {
   color: var(--text-secondary);
   text-decoration: none;
@@ -123,7 +121,6 @@ button:disabled {
   font-size: 1rem;
 }
 
-/* Estilo para o link de alternância */
 .auth-switch {
   margin-top: 1.5rem;
   text-align: center;
@@ -174,38 +171,135 @@ button:disabled {
 }
 
 /* ============================================= */
-/* --- Lobby --- */
+/* --- Lobby Dashboard --- */
 /* ============================================= */
-#lobby {
+#lobbyDashboard {
   padding: 2rem;
-  max-width: 800px;
-  margin: 2rem auto;
+  display: grid;
+  /* Cria 3 colunas, mas em telas menores elas quebram para baixo */
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  gap: 2rem;
+  /* Ocupa o restante da altura da tela, descontando o header */
+  height: calc(
+    100vh - 65px
+  ); /* Ajuste a altura do seu header se for diferente */
+  overflow-y: auto;
+}
+
+.lobby-card {
   background-color: var(--bg-surface);
   border-radius: 8px;
+  padding: 1.5rem 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  overflow-y: auto; /* Permite rolagem interna se o conteúdo for grande */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
+
+.lobby-card h2,
+.lobby-card h3 {
+  margin: 0;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0; /* Impede que o header do card encolha */
+  color: var(--text-primary);
+}
+
 .lobby-actions {
   display: flex;
   gap: 1rem;
-  margin-bottom: 2rem;
 }
+
 #roomList {
-  margin-top: 1rem;
+  margin-top: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 1rem;
 }
-#roomList div {
+
+.room-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
   background-color: var(--bg-main);
-  padding: 1rem;
+  padding: 1rem 1.5rem;
   border-radius: 6px;
+  gap: 1.5rem;
 }
+
+.room-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex-grow: 1;
+}
+
+.room-name {
+  font-size: 1.1rem;
+  color: var(--text-primary);
+}
+.room-details {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
 #roomList button {
   font-size: 0.9rem;
-  padding: 6px 12px;
+  padding: 8px 16px;
   background-color: var(--success-color);
+  flex-shrink: 0;
+}
+
+/* Estilos para as tabelas de dados */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-table th,
+.data-table td {
+  padding: 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.95rem;
+}
+
+.data-table th {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.data-table tr:last-child td {
+  border-bottom: none;
+}
+
+.data-table .win {
+  color: var(--success-color);
+  font-weight: bold;
+}
+.data-table .loss {
+  color: var(--error-color);
+}
+.data-table .draw {
+  color: var(--text-secondary);
+}
+
+/* Estilo para a info de rank do usuário */
+.user-rank-info {
+  margin-top: auto; /* Empurra para o final do card */
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+  text-align: center;
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+}
+
+.user-rank-info strong {
+  color: var(--accent-color);
+  font-weight: 600;
 }
 
 /* ============================================= */
@@ -586,7 +680,6 @@ button:disabled {
   margin-bottom: 1rem;
 }
 
-/* NOVO: Container para as ações do modal */
 .modal-actions {
   display: flex;
   justify-content: center;
@@ -605,7 +698,6 @@ button:disabled {
   cursor: not-allowed;
 }
 
-/* NOVO: Estilo específico para o botão de sair */
 #readyCheckDeclineBtn {
   background-color: var(--error-color);
 }

@@ -604,9 +604,17 @@ function sendError(
 }
 
 function getGameStateForClient(room: GameState): GameStateForClient {
+  // Busca o jogador que é o host para obter seu nome.
+  // Se o host não estiver na sala (raro, mas possível), usa um fallback.
+  const hostPlayer = Array.from(room.players.values()).find(
+    (p) => p.id === room.hostId
+  );
+  const hostName = hostPlayer?.username || "Desconhecido";
+
   return {
     roomCode: room.roomCode,
     hostId: room.hostId,
+    hostName: hostName, // Adiciona o nome do host
     players: Array.from(room.players.values()).map((p) => ({
       id: p.id,
       username: p.username,
@@ -619,7 +627,6 @@ function getGameStateForClient(room: GameState): GameStateForClient {
     status: room.status,
     winner: room.winner,
     turnEndsAt: room.turnEndsAt,
-    // ATUALIZADO: Inclui os votos de pronto no estado enviado ao cliente
     readyVotes: room.readyVotes,
     rematchVotes: room.rematchVotes,
     rematchVoteEndsAt: room.rematchVoteEndsAt,
