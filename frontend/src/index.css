@@ -60,6 +60,8 @@ h3 {
   background-color: var(--bg-surface);
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
   z-index: 10;
+  position: sticky;
+  top: 0;
 }
 
 .logo {
@@ -96,16 +98,77 @@ h3 {
   padding: 2rem;
 }
 
-.welcome-title {
+/* ============================================= */
+/* --- NOVA SEÇÃO: HERO --- */
+/* ============================================= */
+.hero-section {
   text-align: center;
-  font-size: 2.5rem;
+  padding: 4rem 1rem;
+}
+.welcome-title {
+  font-size: 3rem;
   font-weight: 700;
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
   color: var(--text-primary);
+  line-height: 1.2;
+}
+.hero-subtitle {
+  font-size: 1.25rem;
+  color: var(--text-secondary);
+  max-width: 600px;
+  margin: 0 auto 2rem auto;
+}
+.cta-button {
+  background-color: var(--success-color);
+  color: white;
+  text-decoration: none;
+  padding: 1rem 2.5rem;
+  font-size: 1.1rem;
+  font-weight: bold;
+  border-radius: 8px;
+  transition: transform 0.2s ease, filter 0.2s ease;
+  display: inline-block;
+}
+.cta-button:hover {
+  transform: translateY(-3px);
+  filter: brightness(1.1);
 }
 
 /* ============================================= */
-/* --- Tabuleiro Demo --- */
+/* --- NOVA SEÇÃO: FEATURES --- */
+/* ============================================= */
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 2rem;
+}
+.feature-card {
+  background-color: var(--bg-surface);
+  padding: 2rem;
+  border-radius: 8px;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.feature-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+}
+.feature-card svg {
+  color: var(--accent-color);
+  margin-bottom: 1rem;
+}
+.feature-card h3 {
+  margin-bottom: 0.5rem;
+  font-size: 1.25rem;
+}
+.feature-card p {
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+/* ============================================= */
+/* --- Seção do Tabuleiro Demo --- */
 /* ============================================= */
 .game-board-demo {
   display: flex;
@@ -114,7 +177,6 @@ h3 {
   margin: 2rem 0;
   perspective: 1200px;
 }
-
 .demo-board {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -136,11 +198,9 @@ h3 {
   transform-style: preserve-3d;
   transition: transform 0.5s ease;
 }
-
 .demo-board:hover {
   transform: rotateX(2deg) scale(1.02);
 }
-
 .demo-cell {
   width: 50px;
   height: 50px;
@@ -156,47 +216,75 @@ h3 {
   align-items: center;
   transition: all 0.2s ease;
 }
-
 .demo-piece {
   width: 85%;
   height: 85%;
   border-radius: 50%;
   box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.5);
 }
-
 .demo-piece.player1 {
   background-color: var(--player1-color);
   border: 2px solid var(--player1-shadow);
 }
-
 .demo-piece.player2 {
   background-color: var(--player2-color);
   border: 2px solid var(--player2-shadow);
 }
 
+/* NOVA Animação de Pulsação */
+@keyframes pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  50% {
+    transform: scale(1.05);
+    filter: brightness(1.2);
+  }
+}
+.pulsing-piece {
+  animation: pulse 2s infinite ease-in-out;
+}
+
 /* ============================================= */
-/* --- Seções --- */
+/* --- Seções e Tabelas --- */
 /* ============================================= */
 .section {
-  margin-bottom: 3rem;
+  margin-bottom: 4rem;
 }
-
 .section-title {
-  font-size: 1.5rem;
+  font-size: 2rem;
   font-weight: 700;
-  margin-bottom: 1.5rem;
+  margin-bottom: 2rem;
+  text-align: center;
   color: var(--text-primary);
 }
-
+/* NOVA Seção de Dados (2 colunas) */
+.data-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2rem;
+}
+.data-card {
+  background-color: var(--bg-surface);
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+.data-card h3 {
+  font-size: 1.25rem;
+  margin-bottom: 1rem;
+  color: var(--text-primary);
+}
 .table {
   width: 100%;
   border-collapse: collapse;
-  background-color: var(--bg-surface);
-  border-radius: 8px;
+  background-color: transparent; /* A cor vem do data-card */
+  border-radius: 0;
   overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: none;
 }
-
 .table th {
   background-color: var(--bg-main);
   padding: 1rem;
@@ -205,24 +293,32 @@ h3 {
   color: var(--text-primary);
   border-bottom: 1px solid var(--border-color);
 }
-
 .table td {
   padding: 1rem;
   border-bottom: 1px solid var(--border-color);
   color: var(--text-secondary);
 }
-
 .table tr:last-child td {
   border-bottom: none;
 }
-
 .table tr:hover {
   background-color: #354155;
 }
-
 .winner {
   color: var(--success-color);
   font-weight: 600;
+}
+
+/* ============================================= */
+/* --- NOVO: Footer --- */
+/* ============================================= */
+.footer {
+  text-align: center;
+  padding: 2rem;
+  margin-top: 2rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  border-top: 1px solid var(--border-color);
 }
 
 /* ============================================= */
@@ -232,63 +328,61 @@ h3 {
   .container {
     padding: 1rem;
   }
-
   .welcome-title {
-    font-size: 2rem;
+    font-size: 2.2rem;
   }
-
+  .hero-subtitle {
+    font-size: 1.1rem;
+  }
   .nav-links {
     gap: 0.5rem;
   }
-
   .nav-links a {
     padding: 0.5rem 1rem;
     font-size: 0.8rem;
   }
-
   .demo-board {
-    grid-template-columns: repeat(7, 1fr);
     gap: 6px;
     padding: 10px;
   }
-
   .demo-cell {
     width: 35px;
     height: 35px;
   }
-
   .table {
     font-size: 0.9rem;
   }
-
   .table th,
   .table td {
     padding: 0.8rem 0.5rem;
   }
 }
 
-/* ============================================= */
+@media (min-width: 992px) {
+  /* Ativa o grid de 2 colunas para as tabelas em telas maiores */
+  .data-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* =es=========================================== */
 /* --- Estilização da Barra de Rolagem --- */
 /* ============================================= */
 ::-webkit-scrollbar {
   width: 8px;
 }
-
 ::-webkit-scrollbar-track {
   background: var(--bg-surface);
   border-radius: 10px;
 }
-
 ::-webkit-scrollbar-thumb {
   background-color: var(--border-color);
   border-radius: 10px;
   border: 2px solid var(--bg-surface);
 }
-
 ::-webkit-scrollbar-thumb:hover {
   background-color: var(--text-secondary);
 }
-
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--border-color) var(--bg-surface);
