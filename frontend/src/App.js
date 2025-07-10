@@ -45,6 +45,7 @@ document.addEventListener("DOMContentLoaded", () => {
     rematchModalAcceptBtn: document.getElementById("rematchModalAcceptBtn"),
     rematchModalDeclineBtn: document.getElementById("rematchModalDeclineBtn"),
     roomNameDisplay: document.getElementById("roomNameDisplay"),
+    playerListToggle: document.getElementById("playerListToggle"),
   };
 
   let turnCountdownInterval = null;
@@ -664,6 +665,11 @@ document.addEventListener("DOMContentLoaded", () => {
     if (state.socket) {
       state.socket.send(JSON.stringify({ type: "LEAVE_ROOM" }));
     }
+  });
+
+  elements.playerListToggle.addEventListener("click", () => {
+    elements.playerListContent.classList.toggle("collapsed");
+    elements.playerListToggle.classList.toggle("expanded");
   });
 
   async function initializeApp() {

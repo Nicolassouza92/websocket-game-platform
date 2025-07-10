@@ -194,7 +194,6 @@ function handlePlayerLeave(
     return;
   }
 
-  // **INÍCIO DA LÓGICA CORRIGIDA**
   // Se o host saiu, promove um novo host em vez de fechar a sala
   if (wasHost) {
     room.hostId = room.playerOrder[0]; // O próximo jogador na ordem vira o novo host
@@ -208,15 +207,48 @@ function handlePlayerLeave(
       });
     }
   }
-  // **FIM DA LÓGICA CORRIGIDA**
 
-  // Se a saída foi durante a votação de revanche, processa os votos restantes
+  // --- INÍCIO DA CORREÇÃO ---
+  // Lógica específica para quando um jogador sai durante a votação de revanche.
   if (statusBeforeLeave === "finished") {
-    console.log(`[GameService] Jogador saiu durante a votação. Processando...`);
-    processRematchVotes(room);
+    console.log(
+      `[GameService] Jogador saiu durante a votação de revanche. Reavaliando estado.`
+    );
+
+    // Garante que o voto do jogador que saiu não seja mais contado.
+    room.rematchVotes = room.rematchVotes.filter((voterId) =>
+      room.players.has(voterId)
+    );
+
+    const allRemainingVoted = room.rematchVotes.length === room.players.size;
+    const enoughForRematch = room.players.size >= 2;
+
+    if (allRemainingVoted && enoughForRematch) {
+      // Ex: A, B, C estavam na sala. C sai. A e B já tinham votado 'sim'. A revanche pode começar.
+      console.log(
+        `[GameService] Saída tornou a votação unânime entre os restantes. Processando...`
+      );
+      // É seguro chamar processRematchVotes, pois não haverá jogadores a serem removidos.
+      processRematchVotes(room);
+    } else if (!enoughForRematch) {
+      // Ex: A e B estavam na sala. B sai. Não há jogadores suficientes para uma revanche.
+      console.log(
+        `[GameService] Jogadores insuficientes para revanche. Resetando para espera.`
+      );
+      resetRoomToWaiting(room);
+    } else {
+      // Ex: A, B, C estavam na sala. B sai. A votou 'sim', mas C não. A votação continua entre A e C.
+      console.log(
+        `[GameService] Votação de revanche continua com ${room.players.size} jogadores.`
+      );
+      // Apenas atualiza a UI dos jogadores restantes. O timer da votação continua.
+      broadcastRoomState(room);
+    }
+
     if (ws && ws.readyState === WebSocket.OPEN) ws.close();
-    return;
+    return; // Encerra a execução para não cair na lógica de outros status.
   }
+  // --- FIM DA CORREÇÃO ---
 
   // Decide o que fazer com base no estado anterior e no número de jogadores
   if (

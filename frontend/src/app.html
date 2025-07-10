@@ -98,26 +98,32 @@
               <div id="board"><!-- Células geradas via JS --></div>
             </div>
             <div id="game-info" class="game-status-bar"></div>
-
-            <div id="rematch-container" class="game-status-bar hidden">
-              <p id="rematch-status"></p>
-              <div id="rematch-actions">
-                <button id="rematch-accept-btn">Jogar Novamente</button>
-                <button
-                  id="rematch-decline-btn"
-                  style="background-color: var(--error-color)"
-                >
-                  Sair para o Lobby
-                </button>
-              </div>
-            </div>
           </main>
           <!-- Coluna da Direita: Chat e Jogadores -->
           <aside class="sidebar">
             <div class="players-list">
               <div class="players-list-header">
                 <h3>Jogadores</h3>
-                <!-- NOVO: Container para agrupar as ações da direita -->
+                <!-- NOVO: Botão para expandir/encolher a lista -->
+                <button
+                  id="playerListToggle"
+                  class="player-list-toggle"
+                  title="Mostrar/Esconder Jogadores"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
                 <div class="players-list-actions">
                   <button id="leaveRoomBtn" class="hidden">Sair da sala</button>
                   <div id="roomNameDisplay" class="hidden"></div>
