@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Jogando - 3 em Linha</title>
+    <!-- Links para os CSS corretos -->
+    <link rel="stylesheet" href="game.css" />
+    <link rel="stylesheet" href="mobile.css" />
+  </head>
+  <body>
+    <!-- O mainAppContainer é o PRIMEIRO elemento dentro do body -->
+    <div id="mainAppContainer" class="hidden">
+      <header class="main-header">
+        <div class="logo">3 em Linha</div>
+        <div id="userInfo">
+          <span id="welcomeMessage"></span>
+          <button id="leaveRoomBtn" class="hidden">Sair da sala</button>
+          <button id="logoutBtn">Sair</button>
+        </div>
+      </header>
+
+      <!-- Tela de Jogo (sempre visível nesta página) -->
+      <div id="gameScreen">
+        <div class="game-layout">
+          <!-- Coluna da Esquerda: O Jogo -->
+          <main class="game-content">
+            <div id="game-board-container">
+              <div id="board"><!-- Células geradas via JS --></div>
+            </div>
+            <div id="game-info" class="game-status-bar"></div>
+          </main>
+          <!-- Coluna da Direita: Chat e Jogadores -->
+          <aside class="sidebar">
+            <div class="players-list">
+              <div class="players-list-header">
+                <h3>Jogadores</h3>
+                <button
+                  id="playerListToggle"
+                  class="player-list-toggle"
+                  title="Mostrar/Esconder Jogadores"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
+                <div class="players-list-actions">
+                  <div id="roomNameDisplay" class="hidden"></div>
+                </div>
+              </div>
+              <div id="player-list-content"><!-- Lista de jogadores --></div>
+            </div>
+            <div class="chat-container">
+              <h3>Chat da Sala</h3>
+              <div id="chat-messages"><!-- Mensagens --></div>
+              <form id="chat-form">
+                <input
+                  type="text"
+                  id="chat-input"
+                  placeholder="Digite sua mensagem..."
+                  autocomplete="off"
+                  required
+                />
+                <button type="submit" title="Enviar">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    width="22"
+                    height="22"
+                    fill="currentColor"
+                  >
+                    <path d="M0 0h24v24H0z" fill="none" />
+                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                  </svg>
+                </button>
+              </form>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modais específicos do jogo -->
+    <div id="readyCheckModal" class="modal-overlay hidden">
+      <div class="modal-content">
+        <h2>A Partida pode começar?</h2>
+        <p id="readyCheckStatus">
+          A partida começará quando todos estiverem prontos.
+        </p>
+        <div class="modal-actions">
+          <button id="readyCheckBtn">Estou Pronto!</button>
+          <button id="readyCheckDeclineBtn">Sair da Sala</button>
+        </div>
+      </div>
+    </div>
+    <div id="rematchModal" class="modal-overlay hidden">
+      <div class="modal-content">
+        <h2 id="rematchWinnerStatus">O Vencedor é Nicolas!</h2>
+        <p id="rematchVoteStatus">Tempo para votar: 30s | Votos: 0/3</p>
+        <div class="modal-actions">
+          <button id="rematchModalAcceptBtn">Jogar Novamente</button>
+          <button id="rematchModalDeclineBtn">Sair para o Lobby</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="snackbar-container"></div>
+    <script src="App.js"></script>
+  </body>
+</html>

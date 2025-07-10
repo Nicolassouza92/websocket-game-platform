@@ -1,11 +1,16 @@
 import { Request, Response } from "express";
 import User from "../models/userModel";
 import jwt from "jsonwebtoken";
+import { validateUsername, validatePassword } from "../utils/validation";
 
 const JWT_SECRET = process.env.JWT_SECRET as string;
 
 // Função auxiliar para gerar token e definir o cookie
-const generateTokenAndSetCookie = (res: Response, userId: number, username: string) => {
+const generateTokenAndSetCookie = (
+  res: Response,
+  userId: number,
+  username: string
+) => {
   const token = jwt.sign({ userId, username }, JWT_SECRET, { expiresIn: "1h" });
   res.cookie("token", token, {
     httpOnly: true,
@@ -15,11 +20,27 @@ const generateTokenAndSetCookie = (res: Response, userId: number, username: stri
   });
 };
 
-export const register = async (req: Request, res: Response): Promise<Response> => {
+export const register = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
   const { username, password } = req.body;
-  if (!username || !password) {
-    return res.status(400).json({ message: "Usuário e senha são obrigatórios." });
+  
+  // --- INÍCIO DA VALIDAÇÃO ---
+  // 1. Chama a função que valida o NOME DE USUÁRIO (comprimento, letras, números).
+  const usernameValidation = validateUsername(username);
+  if (!usernameValidation.isValid) {
+    // Se for inválido, retorna a mensagem de erro específica.
+    return res.status(400).json({ message: usernameValidation.message });
   }
+
+  // 2. Chama a função que valida a SENHA (comprimento).
+  const passwordValidation = validatePassword(password);
+  if (!passwordValidation.isValid) {
+    // Se for inválida, retorna a mensagem de erro específica.
+    return res.status(400).json({ message: passwordValidation.message });
+  }
+  // --- FIM DA VALIDAÇÃO ---
 
   try {
     const existingUser = await User.findByUsername(username);
@@ -41,7 +62,9 @@ export const register = async (req: Request, res: Response): Promise<Response> =
 export const login = async (req: Request, res: Response): Promise<Response> => {
   const { username, password } = req.body;
   if (!username || !password) {
-    return res.status(400).json({ message: "Usuário e senha são obrigatórios." });
+    return res
+      .status(400)
+      .json({ message: "Usuário e senha são obrigatórios." });
   }
 
   try {
