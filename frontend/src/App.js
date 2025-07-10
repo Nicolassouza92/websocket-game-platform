@@ -19,6 +19,14 @@ document.addEventListener("DOMContentLoaded", () => {
     lobbyDashboard: document.getElementById("lobbyDashboard"),
     gameScreen: document.getElementById("gameScreen"),
     registerForm: document.getElementById("registerForm"),
+    registerUsernameInput: document.querySelector(
+      "#registerForm input[name='username']"
+    ),
+    registerPasswordInput: document.querySelector(
+      "#registerForm input[name='password']"
+    ),
+    usernameFeedback: document.getElementById("username-feedback"),
+    passwordFeedback: document.getElementById("password-feedback"),
     loginForm: document.getElementById("loginForm"),
     logoutBtn: document.getElementById("logoutBtn"),
     welcomeMessage: document.getElementById("welcomeMessage"),
@@ -554,13 +562,42 @@ document.addEventListener("DOMContentLoaded", () => {
   // =============================================
   // --- EVENT LISTENERS ---
   // =============================================
+
+  // NOVO: Adiciona listeners para validação em tempo real nos campos de registro.
+  // Estes "ifs" garantem que o código não quebre se os elementos não existirem na página.
+  if (elements.registerUsernameInput) {
+    elements.registerUsernameInput.addEventListener(
+      "input",
+      validateFrontendUsername
+    );
+  }
+  if (elements.registerPasswordInput) {
+    elements.registerPasswordInput.addEventListener(
+      "input",
+      validateFrontendPassword
+    );
+  }
+
   elements.registerForm.addEventListener("submit", async (e) => {
     e.preventDefault();
+
+    // MODIFICADO: Checagem final antes do envio do formulário.
+    const isUsernameValid = validateFrontendUsername();
+    const isPasswordValid = validateFrontendPassword();
+    // Este "if" impede o envio se a validação falhar.
+    if (!isUsernameValid || !isPasswordValid) {
+      showSnackbar("Por favor, corrija os erros no formulário.", "error");
+      return; // Impede o envio do formulário
+    }
+
     try {
       const data = await apiRequest("/auth/register", "POST", {
         username: e.target.username.value,
         password: e.target.password.value,
       });
+      // Limpa os campos de feedback após sucesso no registro
+      if (elements.usernameFeedback) elements.usernameFeedback.textContent = "";
+      if (elements.passwordFeedback) elements.passwordFeedback.textContent = "";
       await handleLoginSuccess(data);
     } catch (error) {
       showSnackbar(`Erro no registro: ${error.message}`, "error");
@@ -671,6 +708,70 @@ document.addEventListener("DOMContentLoaded", () => {
     elements.playerListContent.classList.toggle("collapsed");
     elements.playerListToggle.classList.toggle("expanded");
   });
+
+  // =============================================
+  // --- FUNÇÕES DE VALIDAÇÃO DO FRONTEND ---
+  // =============================================
+  function validateFrontendUsername() {
+    const username = elements.registerUsernameInput.value;
+    const feedbackEl = elements.usernameFeedback;
+
+    if (username.length > 0 && (username.length < 7 || username.length > 10)) {
+      feedbackEl.textContent = "Deve ter entre 7 e 10 caracteres.";
+      feedbackEl.className = "form-feedback";
+      return false;
+    }
+    if (
+      username.length > 0 &&
+      !(/[a-zA-Z]/.test(username) && /[0-9]/.test(username))
+    ) {
+      feedbackEl.textContent = "Deve conter letras e números.";
+      feedbackEl.className = "form-feedback";
+      return false;
+    }
+
+    feedbackEl.textContent = "Usuário válido!";
+    feedbackEl.className = "form-feedback valid";
+    if (username.length === 0) feedbackEl.textContent = "";
+    return true;
+  }
+
+  function validateFrontendPassword() {
+    const password = elements.registerPasswordInput.value;
+    const feedbackEl = elements.passwordFeedback;
+
+    // REORDENADO: Checa a letra maiúscula primeiro.
+    if (password.length > 0 && !/[A-Z]/.test(password)) {
+      feedbackEl.textContent = "Deve conter ao menos uma letra maiúscula.";
+      feedbackEl.className = "form-feedback";
+      return false;
+    }
+
+    // REORDENADO: Checa o número em segundo.
+    if (password.length > 0 && !/[0-9]/.test(password)) {
+      feedbackEl.textContent = "Deve conter ao menos um número.";
+      feedbackEl.className = "form-feedback";
+      return false;
+    }
+
+    // REORDENADO: Checa o comprimento por último.
+    if (password.length > 0 && password.length < 8) {
+      feedbackEl.textContent = "A senha deve ter no mínimo 8 caracteres.";
+      feedbackEl.className = "form-feedback";
+      return false;
+    }
+
+    // Só mostra "Senha segura!" se todas as condições forem atendidas
+    if (password.length > 0) {
+      feedbackEl.textContent = "Senha segura!";
+      feedbackEl.className = "form-feedback valid";
+    } else {
+      // Limpa a mensagem se o campo estiver vazio
+      feedbackEl.textContent = "";
+    }
+
+    return true;
+  }
 
   async function initializeApp() {
     try {
