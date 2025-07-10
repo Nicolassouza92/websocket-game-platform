@@ -1,0 +1,14 @@
+
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE match_history (
+    id SERIAL PRIMARY KEY,
+    room_code VARCHAR(50),
+    winner_id INTEGER REFERENCES users(id),
+    player_ids INTEGER[] NOT NULL,
+    finished_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);

@@ -62,6 +62,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let turnCountdownInterval = null;
   let rematchCountdownInterval = null;
+  let pingInterval = null;
 
   // =============================================
   // --- NAVEGAÇÃO E LÓGICA DE PÁGINA ---
@@ -158,6 +159,12 @@ document.addEventListener("DOMContentLoaded", () => {
     if (turnCountdownInterval) {
       clearInterval(turnCountdownInterval);
       turnCountdownInterval = null;
+    }
+  }
+  function stopPing() {
+    if (pingInterval) {
+      clearInterval(pingInterval);
+      pingInterval = null;
     }
   }
   function startTurnCountdown() {
@@ -427,10 +434,20 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   function connectToGame(roomCode) {
     if (state.socket) state.socket.close();
+    stopPing();
     isLeavingIntentionally = false;
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const host = window.location.host;
-    state.socket = new WebSocket(`${protocol}//${host}?roomCode=${roomCode}`);
+    //state.socket = new WebSocket(`${protocol}//${host}?roomCode=${roomCode}`);
+    state.socket = new WebSocket(`${protocol}//${host}/ws?roomCode=${roomCode}`);
+    state.socket.onopen = () => {
+      pingInterval = setInterval(() => {
+        // Envia o ping apenas se a conexão ainda estiver aberta
+        if (state.socket && state.socket.readyState === WebSocket.OPEN) {
+          state.socket.send(JSON.stringify({ type: "PING" }));
+        }
+      }, 15000); // 15 segundos
+    };
     state.socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
       const { type, payload } = data;
@@ -464,6 +481,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     };
     state.socket.onclose = () => {
+      stopPing();
       if (isLeavingIntentionally) {
         goToLobby();
       } else {
