@@ -1,10 +1,12 @@
+// frontend/src/landing.js
 document.addEventListener("DOMContentLoaded", () => {
   const matchHistoryBody = document.getElementById("match-history-body");
   const leaderboardBody = document.getElementById("leaderboard-body");
 
   async function apiRequest(endpoint) {
     try {
-      const response = await fetch(`/api${endpoint}`);
+      // A rota base é /api/history
+      const response = await fetch(`/api/history${endpoint}`);
       if (!response.ok) {
         throw new Error(`Erro de rede: ${response.statusText}`);
       }
@@ -63,9 +65,10 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function loadPageData() {
+    // Chama as novas rotas PÚBLICAS
     const [matches, leaders] = await Promise.all([
-      apiRequest("/history/matches"),
-      apiRequest("/history/leaderboard"),
+      apiRequest("/matches-public"),
+      apiRequest("/leaderboard-public"),
     ]);
     renderMatchHistory(matches);
     renderLeaderboard(leaders);

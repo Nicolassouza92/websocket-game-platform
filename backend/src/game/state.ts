@@ -1,4 +1,3 @@
-// backend/src/game/state.ts
 import { WebSocket } from "ws";
 
 export type PlayerId = number;
@@ -11,8 +10,8 @@ export interface Player {
 }
 
 export interface PlayerState extends Player {
-  ws: WebSocket | null; // A conexão ativa ou null se estiver offline
-  inactiveTurns: number; // Contador de turnos inativos (strikes)
+  ws: WebSocket | null;
+  inactiveTurns: number;
 }
 
 export interface PlayerInfoForClient {
@@ -26,15 +25,13 @@ export interface GameState {
   hostId: PlayerId;
   players: Map<PlayerId, PlayerState>;
   playerOrder: PlayerId[];
-  playerOrderHistory: PlayerId[]; // Histórico imutável da ordem dos jogadores da partida
+  playerOrderHistory: PlayerId[];
   currentPlayerIndex: number;
   board: Board;
-  // ATUALIZADO: Adicionado novo status 'readyCheck'
   status: "waiting" | "readyCheck" | "playing" | "finished";
   winner?: PlayerId | null;
   sessionWins: Map<PlayerId, number>;
   turnEndsAt?: number;
-  // NOVO: Array para rastrear os votos de "pronto"
   readyVotes: PlayerId[];
   rematchVotes: PlayerId[];
   rematchVoteEndsAt?: number;
@@ -43,17 +40,16 @@ export interface GameState {
 export interface GameStateForClient {
   roomCode: string;
   hostId: PlayerId;
+  hostName: string; // Adicionado para exibir o nome do criador
   players: PlayerInfoForClient[];
   board: Board;
   playerOrder: PlayerId[];
-  playerOrderHistory: PlayerId[]; // Envia o histórico para o cliente
+  playerOrderHistory: PlayerId[];
   currentPlayerIndex: number;
-  // ATUALIZADO: Adicionado novo status 'readyCheck'
   status: "waiting" | "readyCheck" | "playing" | "finished";
   winner?: PlayerId | null;
   sessionWins: { [key: number]: number };
   turnEndsAt?: number;
-  // NOVO: Envia os votos de "pronto" para o cliente
   readyVotes: PlayerId[];
   rematchVotes: PlayerId[];
   rematchVoteEndsAt?: number;
