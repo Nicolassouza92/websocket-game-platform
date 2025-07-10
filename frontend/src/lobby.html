@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lobby - 3 em Linha</title>
+    <!-- Links para os CSS corretos -->
+    <link rel="stylesheet" href="lobby.css" />
+  </head>
+  <body>
+    <!-- Container de Autenticação (quando deslogado) -->
+    <div id="authContainer">
+      <a href="index.html" class="back-to-home-link"
+        >← Voltar para a Página Inicial</a
+      >
+      <div class="form-wrapper hidden" id="registerWrapper">
+        <h2>Registro</h2>
+        <form id="registerForm" novalidate>
+          <input type="text" name="username" placeholder="Usuário" required />
+          <p class="form-feedback" id="username-feedback"></p>
+          <input type="password" name="password" placeholder="Senha" required />
+          <p class="form-feedback" id="password-feedback"></p>
+          <button type="submit">Registrar</button>
+        </form>
+        <p class="auth-switch">
+          Já tem uma conta? <a href="#login">Faça o login</a>
+        </p>
+      </div>
+      <div class="form-wrapper hidden" id="loginWrapper">
+        <h2>Login</h2>
+        <form id="loginForm">
+          <input type="text" name="username" placeholder="Usuário" required />
+          <input type="password" name="password" placeholder="Senha" required />
+          <button type="submit">Login</button>
+        </form>
+        <p class="auth-switch">
+          Não tem uma conta? <a href="#register">Registre-se</a>
+        </p>
+      </div>
+    </div>
+
+    <!-- Container Principal da Aplicação (quando logado) -->
+    <div id="mainAppContainer" class="hidden">
+      <header class="main-header">
+        <div class="logo">3 em Linha</div>
+        <div id="userInfo">
+          <span id="welcomeMessage"></span>
+          <button id="logoutBtn">Sair</button>
+        </div>
+      </header>
+
+      <!-- Dashboard do Lobby -->
+      <div id="lobbyDashboard">
+        <div class="lobby-card">
+          <h2>Salas de Jogo</h2>
+          <div class="lobby-actions">
+            <button id="createRoomBtn">Criar Nova Sala</button>
+            <button id="refreshRoomsBtn">Atualizar</button>
+          </div>
+          <div id="roomList">Carregando...</div>
+        </div>
+        <div class="lobby-card">
+          <h3>Meu Histórico</h3>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Jogadores</th>
+                <th>Resultado</th>
+              </tr>
+            </thead>
+            <tbody id="personalHistoryContent"></tbody>
+          </table>
+        </div>
+        <div class="lobby-card">
+          <h3>Ranking Global</h3>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Jogador</th>
+                <th>Vitórias</th>
+              </tr>
+            </thead>
+            <tbody id="leaderboardContent"></tbody>
+          </table>
+          <div id="userRank" class="user-rank-info hidden"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="snackbar-container"></div>
+    <!-- O App.js é carregado em ambas as páginas e sabe o que fazer -->
+    <script src="App.js"></script>
+  </body>
+</html>
