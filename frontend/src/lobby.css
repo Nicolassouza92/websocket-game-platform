@@ -1,0 +1,902 @@
+/* ============================================= */
+/* --- Variáveis e Estilos de Base (Mobile-First) --- */
+/* ============================================= */
+:root {
+  /* Cores Base da sua paleta Coolors */
+  --bg-darkest: #19202d;
+  --bg-darker: #1e1f2c;
+  --bg-surface: #1c263c;
+  --bg-surface-light: #2e3748;
+
+  /* Cores de Ação */
+  --text-primary: #e2e8f0;
+  --text-secondary: #a0aec0;
+  --border-color: #4a5568;
+  --accent-color: #4299e1;
+  --success-color: #48bb78;
+  --error-color: #f56565;
+
+  /* Espaçamentos Mobile-First */
+  --spacing-xs: 0.5rem;
+  --spacing-sm: 0.75rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+  --spacing-2xl: 3rem;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--bg-darkest);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  margin: 0;
+  padding: 0;
+  font-size: 14px; /* Mobile-first: menor font-size */
+  line-height: 1.5;
+  height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Tipografia responsiva */
+h1,
+h2,
+h3 {
+  color: white;
+  font-weight: 600;
+  margin: 0;
+  line-height: 1.3;
+}
+
+h1 {
+  font-size: 1.5rem;
+}
+h2 {
+  font-size: 1.25rem;
+}
+h3 {
+  font-size: 1.125rem;
+}
+.form-feedback {
+  font-size: 0.8rem;
+  margin: -0.5rem 0 0.5rem 0.25rem;
+  height: 1.2em; /* Garante espaço para não "pular" o layout */
+  color: var(--error-color);
+  text-align: left;
+}
+.form-feedback.valid {
+  color: var(--success-color);
+}
+/* Botões responsivos */
+button {
+  background-color: var(--accent-color);
+  color: white;
+  border: none;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  min-height: 44px; /* Touch-friendly */
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-xs);
+}
+
+button:hover {
+  filter: brightness(1.15);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 15px rgba(66, 153, 225, 0.3);
+}
+
+button:active {
+  transform: translateY(0);
+}
+
+button:disabled {
+  background-color: var(--border-color);
+  cursor: not-allowed;
+  filter: brightness(0.8);
+  transform: none;
+  box-shadow: none;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* ============================================= */
+/* --- Layout Principal Mobile-First --- */
+/* ============================================= */
+#mainAppContainer {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-height: 100vh;
+}
+
+.main-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background-color: var(--bg-surface);
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  border-bottom: 2px solid var(--accent-color);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.main-header .logo {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+#userInfo {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+#welcomeMessage {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  display: none; /* Esconde no mobile */
+}
+
+#logoutBtn {
+  background-color: #c53030;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: 0.8rem;
+  min-height: 36px;
+}
+
+#logoutBtn:hover {
+  box-shadow: 0 4px 15px rgba(197, 48, 48, 0.4);
+}
+
+/* ============================================= */
+/* --- Autenticação Mobile-First --- */
+/* ============================================= */
+#authContainer {
+  background: radial-gradient(
+    ellipse at center,
+    var(--bg-darker),
+    var(--bg-darkest) 70%
+  );
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  min-height: 100vh;
+  padding: var(--spacing-md);
+  gap: var(--spacing-lg);
+}
+
+.back-to-home-link {
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 0.85rem;
+  transition: color 0.2s;
+  align-self: center;
+  text-align: center;
+  margin-bottom: var(--spacing-md);
+}
+
+.back-to-home-link:hover {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
+.form-wrapper {
+  background-color: var(--bg-surface);
+  padding: var(--spacing-lg);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  width: 100%;
+  max-width: 360px;
+  border: 1px solid var(--border-color);
+}
+
+.form-wrapper h2 {
+  text-align: center;
+  margin-bottom: var(--spacing-lg);
+  font-size: 1.375rem;
+}
+
+.form-wrapper form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.form-wrapper input {
+  background-color: var(--bg-darkest);
+  border: 2px solid var(--border-color);
+  color: var(--text-primary);
+  padding: var(--spacing-sm);
+  border-radius: 8px;
+  font-size: 1rem;
+  min-height: 44px;
+  transition: border-color 0.2s;
+}
+
+.form-wrapper input:focus {
+  outline: none;
+  border-color: var(--accent-color);
+}
+
+.form-wrapper button {
+  margin-top: var(--spacing-xs);
+  font-size: 1rem;
+  padding: var(--spacing-sm) var(--spacing-md);
+}
+
+.auth-switch {
+  margin-top: var(--spacing-lg);
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.auth-switch a {
+  color: var(--accent-color);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.auth-switch a:hover {
+  text-decoration: underline;
+}
+
+/* ============================================= */
+/* --- Lobby Dashboard Mobile-First --- */
+/* ============================================= */
+#lobbyDashboard {
+  padding: var(--spacing-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  background: radial-gradient(
+    ellipse at top,
+    var(--bg-darker),
+    var(--bg-darkest) 80%
+  );
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.lobby-card {
+  background-color: var(--bg-surface);
+  border-radius: 12px;
+  padding: var(--spacing-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border-color);
+  position: relative;
+  overflow: hidden;
+  /* Garantir largura mínima no mobile */
+  min-width: 300px;
+  width: 100%;
+}
+
+.lobby-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent-color), var(--success-color));
+}
+
+.lobby-card h2,
+.lobby-card h3 {
+  color: var(--text-primary);
+  padding-bottom: var(--spacing-sm);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 1.125rem;
+}
+
+.lobby-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+/* ============================================= */
+/* --- Lista de Salas Mobile-First --- */
+/* ============================================= */
+#roomList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: var(--spacing-xs);
+  /* Garantir largura mínima para o container de salas */
+  min-width: 280px;
+}
+
+.room-item {
+  background-color: var(--bg-darker);
+  padding: var(--spacing-md);
+  border-radius: 8px;
+  border-left: 4px solid var(--border-color);
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  /* Garantir largura mínima para cada sala */
+  min-width: 260px;
+}
+
+.room-item:hover {
+  border-left-color: var(--success-color);
+  background-color: var(--bg-surface-light);
+}
+
+.room-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.room-name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.room-details {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+#roomList button {
+  background-color: var(--success-color);
+  width: 100%;
+  font-size: 0.9rem;
+  padding: var(--spacing-xs) var(--spacing-sm);
+}
+
+#roomList button:hover {
+  box-shadow: 0 4px 15px rgba(72, 187, 120, 0.4);
+}
+
+/* ============================================= */
+/* --- Tabelas Mobile-First --- */
+/* ============================================= */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  /* Garantir que não quebre o layout */
+  table-layout: fixed;
+}
+
+.data-table th,
+.data-table td {
+  padding: var(--spacing-sm);
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+  /* Quebra de texto em células pequenas */
+  word-wrap: break-word;
+  overflow: hidden;
+}
+
+.data-table th {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.data-table tr:hover td {
+  background-color: var(--bg-surface-light);
+}
+
+.data-table .win {
+  color: var(--success-color);
+  font-weight: 600;
+}
+
+.data-table .loss {
+  color: var(--error-color);
+  font-weight: 600;
+}
+
+.data-table .draw {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.user-rank-info {
+  margin-top: var(--spacing-md);
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--border-color);
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.user-rank-info strong {
+  color: var(--accent-color);
+  font-weight: 700;
+}
+
+/* ============================================= */
+/* --- Componentes de Feedback Mobile-First --- */
+/* ============================================= */
+#snackbar-container {
+  position: fixed;
+  bottom: var(--spacing-md);
+  left: var(--spacing-md);
+  right: var(--spacing-md);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-sm);
+  pointer-events: none;
+}
+
+.snackbar {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: 8px;
+  color: white;
+  font-weight: 600;
+  font-size: 0.9rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  width: 100%;
+  text-align: center;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: all 0.3s ease;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.snackbar.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.snackbar.info {
+  background-color: var(--accent-color);
+}
+
+.snackbar.success {
+  background-color: var(--success-color);
+}
+
+.snackbar.error {
+  background-color: var(--error-color);
+}
+
+/* ============================================= */
+/* --- Modais Mobile-First --- */
+/* ============================================= */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+  padding: var(--spacing-md);
+}
+
+.modal-content {
+  background-color: var(--bg-surface);
+  padding: var(--spacing-lg);
+  border-radius: 16px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+  text-align: center;
+  width: 100%;
+  max-width: 400px;
+  border: 1px solid var(--border-color);
+}
+
+.modal-content h2 {
+  margin-bottom: var(--spacing-md);
+  color: var(--text-primary);
+}
+
+.modal-content p {
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-md);
+}
+
+.modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-lg);
+}
+
+.modal-content button {
+  width: 100%;
+  font-size: 1rem;
+}
+
+#readyCheckDeclineBtn,
+#rematchModalDeclineBtn {
+  background-color: var(--error-color);
+}
+
+#rematchVoteStatus {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin: var(--spacing-sm) 0;
+}
+
+/* ============================================= */
+/* --- Scrollbar Mobile-First --- */
+/* ============================================= */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-surface);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--border-color);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--text-secondary);
+}
+
+/* ============================================= */
+/* --- BREAKPOINTS - TABLET (768px+) --- */
+/* ============================================= */
+@media (min-width: 768px) {
+  body {
+    font-size: 16px;
+  }
+
+  h1 {
+    font-size: 2rem;
+  }
+  h2 {
+    font-size: 1.5rem;
+  }
+  h3 {
+    font-size: 1.25rem;
+  }
+
+  .main-header {
+    padding: var(--spacing-md) var(--spacing-xl);
+  }
+
+  .main-header .logo {
+    font-size: 1.375rem;
+  }
+
+  #welcomeMessage {
+    display: block;
+    font-size: 1rem;
+  }
+
+  #logoutBtn {
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: 0.9rem;
+  }
+
+  .form-wrapper {
+    padding: var(--spacing-xl);
+    max-width: 420px;
+  }
+
+  #lobbyDashboard {
+    padding: var(--spacing-xl);
+    gap: var(--spacing-xl);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto;
+    align-items: start;
+  }
+
+  .lobby-card {
+    padding: var(--spacing-lg);
+    min-width: 320px;
+  }
+
+  .lobby-card:first-child {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .lobby-card:nth-child(2) {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .lobby-card:nth-child(3) {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .lobby-actions {
+    flex-direction: row;
+    gap: var(--spacing-md);
+  }
+
+  .room-item {
+    flex-direction: row;
+    align-items: center;
+    min-width: 300px;
+  }
+
+  .room-info {
+    flex: 1;
+  }
+
+  #roomList button {
+    width: auto;
+    min-width: 100px;
+  }
+
+  #roomList {
+    min-width: 300px;
+  }
+
+  .data-table {
+    font-size: 0.9rem;
+    table-layout: auto;
+  }
+
+  .data-table th,
+  .data-table td {
+    padding: var(--spacing-md);
+  }
+
+  .modal-actions {
+    flex-direction: row;
+    justify-content: center;
+  }
+
+  .modal-content button {
+    width: auto;
+    min-width: 120px;
+  }
+
+  #snackbar-container {
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: 90%;
+    max-width: 500px;
+  }
+}
+
+/* ============================================= */
+/* --- BREAKPOINTS - DESKTOP (1024px+) --- */
+/* ============================================= */
+@media (min-width: 1024px) {
+  .main-header {
+    padding: var(--spacing-lg) var(--spacing-2xl);
+  }
+
+  #lobbyDashboard {
+    padding: var(--spacing-2xl);
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    grid-template-rows: auto auto;
+    gap: var(--spacing-xl);
+    align-items: start;
+    /* Força altura mínima para evitar sobreposição */
+    min-height: 80vh;
+  }
+
+  .lobby-card {
+    padding: var(--spacing-xl);
+    min-width: 350px;
+    /* Garante que cada card tenha sua própria área */
+    position: relative;
+  }
+
+  /* Salas de Jogo - primeira coluna, ocupa ambas as linhas */
+  .lobby-card:first-child {
+    grid-column: 1;
+    grid-row: 1 / 3;
+  }
+
+  /* Meu Histórico - segunda coluna, primeira linha */
+  .lobby-card:nth-child(2) {
+    grid-column: 2;
+    grid-row: 1;
+    /* Força altura mínima para não ser sobreposto */
+    min-height: 350px;
+  }
+
+  /* Ranking Global - segunda coluna, segunda linha */
+  .lobby-card:nth-child(3) {
+    grid-column: 2;
+    grid-row: 2;
+    /* Força que fique abaixo do histórico */
+    margin-top: var(--spacing-xl);
+  }
+
+  #roomList {
+    max-height: 400px;
+    min-width: 320px;
+  }
+
+  .room-item {
+    padding: var(--spacing-lg);
+    min-width: 300px;
+  }
+
+  .data-table {
+    font-size: 1rem;
+  }
+
+  .lobby-actions {
+    gap: var(--spacing-lg);
+  }
+}
+
+/* ============================================= */
+/* --- BREAKPOINTS - LARGE DESKTOP (1280px+) --- */
+/* ============================================= */
+@media (min-width: 1280px) {
+  #lobbyDashboard {
+    grid-template-columns: 2fr 1.2fr 1fr;
+    grid-template-rows: auto;
+    gap: var(--spacing-xl);
+    min-height: auto;
+  }
+
+  .lobby-card {
+    min-width: 380px;
+  }
+
+  /* Em telas grandes, cada card ocupa sua própria coluna */
+  .lobby-card:first-child {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .lobby-card:nth-child(2) {
+    grid-column: 2;
+    grid-row: 1;
+    min-height: auto;
+    margin-top: 0;
+  }
+
+  .lobby-card:nth-child(3) {
+    grid-column: 3;
+    grid-row: 1;
+    margin-top: 0;
+  }
+
+  #roomList {
+    max-height: 500px;
+    min-width: 350px;
+  }
+
+  .room-item {
+    min-width: 330px;
+  }
+}
+
+/* ============================================= */
+/* --- MELHORIAS DE ACESSIBILIDADE E UX --- */
+/* ============================================= */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Focus states para acessibilidade */
+button:focus,
+input:focus,
+a:focus {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
+/* Melhoria para touch devices */
+@media (hover: none) {
+  button:hover {
+    transform: none;
+    filter: none;
+  }
+
+  button:active {
+    transform: scale(0.98);
+    filter: brightness(0.9);
+  }
+}
+
+/* Estados de loading */
+.loading {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.loading::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  border: 2px solid var(--border-color);
+  border-radius: 50%;
+  border-top-color: var(--accent-color);
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ============================================= */
+/* --- CORREÇÕES ESPECÍFICAS PARA MOBILE --- */
+/* ============================================= */
+@media (max-width: 767px) {
+  /* Garantir que o dashboard seja scrollável horizontalmente se necessário */
+  #lobbyDashboard {
+    overflow-x: auto;
+    min-width: 320px;
+  }
+
+  /* Garantir que os cards não quebrem o layout */
+  .lobby-card {
+    flex-shrink: 0;
+    min-width: 300px;
+    max-width: calc(100vw - 2rem);
+  }
+
+  /* Ajustar lista de salas para mobile */
+  #roomList {
+    min-width: 280px;
+    max-width: 100%;
+  }
+
+  .room-item {
+    min-width: 260px;
+    max-width: 100%;
+  }
+
+  /* Garantir que tabelas não quebrem */
+  .data-table {
+    min-width: 280px;
+    font-size: 0.8rem;
+  }
+
+  .data-table th,
+  .data-table td {
+    padding: var(--spacing-xs);
+    font-size: 0.75rem;
+  }
+}

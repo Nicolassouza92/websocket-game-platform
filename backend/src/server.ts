@@ -30,13 +30,13 @@ app.use(cookieParser());
 
 // --- Servir Arquivos Estáticos do Frontend ---
 // Isso servirá index.html, app.html, style.css, App.js, landing.js, etc.
-app.use(express.static(path.join(__dirname, "../../frontend/src")));
+//app.use(express.static(path.join(__dirname, "../../frontend/src")));
 
 // --- Rota Principal para servir o index.html (Página de boas-vindas) ---
 // O express.static já faz isso por padrão, mas podemos ser explícitos.
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "../../frontend/src/index.html"));
-});
+//app.get("/", (req, res) => {
+//  res.sendFile(path.join(__dirname, "../../frontend/src/index.html"));
+//});
 
 // A rota para /app.html será resolvida automaticamente pelo express.static
 

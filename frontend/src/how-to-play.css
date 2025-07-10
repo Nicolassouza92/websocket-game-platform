@@ -1,4 +1,11 @@
-/* frontend/src/how-to-play.css */
+/* ============================================= */
+/* --- Header --- */
+/* ============================================= */
+.logo img {
+  height: 40px; /* Define a altura do logo. Você pode ajustar este valor. */
+  width: auto; /* A largura se ajusta automaticamente para manter a proporção. */
+  display: block; /* Remove qualquer espaço extra abaixo da imagem. */
+}
 
 .rules-container {
   background-color: var(--bg-surface);
@@ -7,6 +14,32 @@
   max-width: 900px;
   margin: 2rem auto;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+
+  /* --- NOVAS PROPRIEDADES --- */
+  position: relative; /* Necessário para a borda superior */
+  overflow: hidden; /* Garante que a borda não saia do card */
+  transition: transform 0.3s ease, box-shadow 0.3s ease; /* Animação suave */
+}
+
+/* NOVO: Efeito de hover para levantar o card */
+.rules-container:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.25);
+}
+
+/* NOVO: Borda superior com gradiente */
+.rules-container::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background-image: linear-gradient(
+    to right,
+    var(--accent-color),
+    var(--success-color)
+  );
 }
 
 .rule-section {

@@ -40,3 +40,4 @@ coverage/
 
 # Outros
 .idea/ # Para usuários do JetBrains IDEs (WebStorm, etc.)
+letsencrypt

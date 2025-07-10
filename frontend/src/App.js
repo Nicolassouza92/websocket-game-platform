@@ -1,5 +1,5 @@
 document.addEventListener("DOMContentLoaded", () => {
-  // --- Estado da Aplicação (a "memória" do frontend) ---
+  // --- Estado da Aplicação ---
   const state = {
     currentUser: null,
     currentRoom: null,
@@ -7,27 +7,34 @@ document.addEventListener("DOMContentLoaded", () => {
     socket: null,
   };
 
-  // --- Adicionada uma flag para controle de mensagens de fechamento ---
-  let roomClosedByServer = false;
+  let isLeavingIntentionally = false;
 
   // --- Referências aos Elementos da UI ---
   const elements = {
+    // Elementos do Lobby/Auth
     authContainer: document.getElementById("authContainer"),
     registerWrapper: document.getElementById("registerWrapper"),
     loginWrapper: document.getElementById("loginWrapper"),
-    mainAppContainer: document.getElementById("mainAppContainer"),
     lobbyDashboard: document.getElementById("lobbyDashboard"),
-    gameScreen: document.getElementById("gameScreen"),
     registerForm: document.getElementById("registerForm"),
+    registerUsernameInput: document.querySelector(
+      "#registerForm input[name='username']"
+    ),
+    registerPasswordInput: document.querySelector(
+      "#registerForm input[name='password']"
+    ),
+    usernameFeedback: document.getElementById("username-feedback"),
+    passwordFeedback: document.getElementById("password-feedback"),
     loginForm: document.getElementById("loginForm"),
-    logoutBtn: document.getElementById("logoutBtn"),
-    welcomeMessage: document.getElementById("welcomeMessage"),
     createRoomBtn: document.getElementById("createRoomBtn"),
     refreshRoomsBtn: document.getElementById("refreshRoomsBtn"),
     roomList: document.getElementById("roomList"),
     personalHistoryContent: document.getElementById("personalHistoryContent"),
     leaderboardContent: document.getElementById("leaderboardContent"),
     userRank: document.getElementById("userRank"),
+
+    // Elementos do Jogo
+    gameScreen: document.getElementById("gameScreen"),
     gameInfo: document.getElementById("game-info"),
     playerListContent: document.getElementById("player-list-content"),
     gameBoard: document.getElementById("board"),
@@ -46,94 +53,118 @@ document.addEventListener("DOMContentLoaded", () => {
     rematchModalDeclineBtn: document.getElementById("rematchModalDeclineBtn"),
     roomNameDisplay: document.getElementById("roomNameDisplay"),
     playerListToggle: document.getElementById("playerListToggle"),
+
+    // Elementos Comuns
+    mainAppContainer: document.getElementById("mainAppContainer"),
+    logoutBtn: document.getElementById("logoutBtn"),
+    welcomeMessage: document.getElementById("welcomeMessage"),
   };
 
   let turnCountdownInterval = null;
   let rematchCountdownInterval = null;
+  let pingInterval = null;
 
   // =============================================
-  // --- FUNÇÃO PARA CONTROLAR A VISÃO DE AUTH ---
+  // --- NAVEGAÇÃO E LÓGICA DE PÁGINA ---
   // =============================================
+  function goToGame(roomCode) {
+    localStorage.setItem("currentRoomCode", roomCode);
+    window.location.href = "game.html";
+  }
+
+  function goToLobby() {
+    localStorage.removeItem("currentRoomCode");
+    window.location.href = "lobby.html";
+  }
+
   function handleAuthView() {
-    if (state.currentUser) return;
+    if (state.currentUser || !elements.registerWrapper) return;
     const hash = window.location.hash || "#login";
-    if (elements.registerWrapper && elements.loginWrapper) {
-      elements.registerWrapper.classList.toggle("hidden", hash !== "#register");
-      elements.loginWrapper.classList.toggle("hidden", hash !== "#login");
-    }
+    elements.registerWrapper.classList.toggle("hidden", hash !== "#register");
+    elements.loginWrapper.classList.toggle("hidden", hash !== "#login");
   }
 
   // =============================================
-  // --- FUNÇÃO CENTRAL DE RENDERIZAÇÃO ---
+  // --- FUNÇÃO CENTRAL DE RENDERIZAÇÃO (CORRIGIDA) ---
   // =============================================
   function render() {
-    const { currentUser, currentRoom, availableRooms } = state;
+    const { currentUser, currentRoom } = state;
     const isLoggedIn = !!currentUser;
 
-    elements.authContainer.classList.toggle("hidden", isLoggedIn);
+    if (!elements.mainAppContainer) return; // Sai se não for uma página da app
+
+    // Lógica de visibilidade geral
+    if (elements.authContainer) {
+      elements.authContainer.classList.toggle("hidden", isLoggedIn);
+    }
     elements.mainAppContainer.classList.toggle("hidden", !isLoggedIn);
 
     if (isLoggedIn) {
       elements.welcomeMessage.textContent = `Bem-vindo, ${currentUser.username}!`;
-      const isInGame = !!currentRoom;
+    }
 
-      elements.lobbyDashboard.classList.toggle("hidden", isInGame);
-      elements.gameScreen.classList.toggle("hidden", !isInGame);
-      elements.leaveRoomBtn.classList.toggle("hidden", !isInGame);
+    // Lógica específica para a PÁGINA DE LOBBY
+    if (elements.lobbyDashboard) {
+      if (!isLoggedIn) {
+        handleAuthView();
+      } else {
+        renderRoomList(state.availableRooms);
+      }
+    }
+
+    // Lógica específica para a PÁGINA DE JOGO
+    if (elements.gameScreen) {
+      const isInGame = !!currentRoom;
+      elements.gameScreen.style.display = isInGame ? "flex" : "none";
+
+      if (elements.leaveRoomBtn)
+        elements.leaveRoomBtn.classList.toggle("hidden", !isInGame);
 
       if (isInGame) {
+        renderPlayerList(currentRoom.players);
+        renderBoard(currentRoom);
+        renderGameInfo(currentRoom);
+
         if (elements.roomNameDisplay) {
           elements.roomNameDisplay.textContent = `Sala: ${currentRoom.roomCode}`;
           elements.roomNameDisplay.classList.remove("hidden");
         }
-        renderPlayerList(currentRoom.players);
-        renderBoard(currentRoom);
 
         const isReadyCheck = currentRoom.status === "readyCheck";
-        elements.readyCheckModal.classList.toggle("hidden", !isReadyCheck);
-        if (isReadyCheck) {
-          renderReadyCheckUI(currentRoom);
-        }
+        if (elements.readyCheckModal)
+          elements.readyCheckModal.classList.toggle("hidden", !isReadyCheck);
+        if (isReadyCheck) renderReadyCheckUI(currentRoom);
 
         const isFinished = currentRoom.status === "finished";
-        elements.rematchModal.classList.toggle("hidden", !isFinished);
-        if (isFinished) {
-          renderRematchModalUI(currentRoom);
-        } else {
-          stopRematchCountdown();
-        }
+        if (elements.rematchModal)
+          elements.rematchModal.classList.toggle("hidden", !isFinished);
+        if (isFinished) renderRematchModalUI(currentRoom);
+        else stopRematchCountdown();
 
-        renderGameInfo(currentRoom);
-        if (currentRoom.status === "playing") {
-          startTurnCountdown();
-        } else {
-          stopTurnCountdown();
-        }
+        if (currentRoom.status === "playing") startTurnCountdown();
+        else stopTurnCountdown();
       } else {
-        if (elements.roomNameDisplay) {
-          elements.roomNameDisplay.classList.add("hidden");
-        }
-        stopTurnCountdown();
-        stopRematchCountdown();
-        elements.readyCheckModal.classList.add("hidden");
-        elements.rematchModal.classList.add("hidden");
-        renderRoomList(availableRooms);
+        // Mostra uma tela de "Conectando..." ou similar se não estiver no jogo ainda
+        // (pode ser aprimorado no futuro)
       }
-    } else {
-      // **CORREÇÃO APLICADA AQUI**
-      stopTurnCountdown();
-      stopRematchCountdown();
-      handleAuthView(); // Adicionada a chamada que faltava
     }
   }
 
   // =============================================
-  // --- FUNÇÕES DE TIMER ---
+  // --- TIMERS, RENDER HELPERS, API, WEBSOCKET ---
+  // --- (sem mudanças a partir daqui) ---
   // =============================================
+
   function stopTurnCountdown() {
     if (turnCountdownInterval) {
       clearInterval(turnCountdownInterval);
       turnCountdownInterval = null;
+    }
+  }
+  function stopPing() {
+    if (pingInterval) {
+      clearInterval(pingInterval);
+      pingInterval = null;
     }
   }
   function startTurnCountdown() {
@@ -160,10 +191,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }, 1000);
   }
 
-  // =============================================
-  // --- FUNÇÕES AUXILIARES DE RENDERIZAÇÃO ---
-  // =============================================
-
   function renderRoomList(rooms) {
     if (!elements.roomList) return;
     elements.roomList.innerHTML = "";
@@ -178,19 +205,15 @@ document.addEventListener("DOMContentLoaded", () => {
       const roomInfo = document.createElement("div");
       roomInfo.className = "room-info";
       const statusText = statusTranslations[room.status] || room.status;
-      roomInfo.innerHTML = `
-        <span class="room-name">Sala: <b>${room.roomCode}</b> (Host: ${room.hostName})</span>
-        <span class="room-details">Jogadores: ${room.players.length}/3 | Status: ${statusText}</span>
-      `;
+      roomInfo.innerHTML = `<span class="room-name">Sala: <b>${room.roomCode}</b> (Host: ${room.hostName})</span><span class="room-details">Jogadores: ${room.players.length}/3 | Status: ${statusText}</span>`;
       const joinBtn = document.createElement("button");
       joinBtn.textContent = "Entrar";
-      joinBtn.onclick = () => connectToGame(room.roomCode);
+      joinBtn.onclick = () => goToGame(room.roomCode);
       roomEl.appendChild(roomInfo);
       roomEl.appendChild(joinBtn);
       elements.roomList.appendChild(roomEl);
     });
   }
-
   function renderPersonalHistory(matches) {
     if (!elements.personalHistoryContent) return;
     if (!matches || matches.length === 0) {
@@ -215,7 +238,6 @@ document.addEventListener("DOMContentLoaded", () => {
       })
       .join("");
   }
-
   function renderLeaderboard(data) {
     const { leaderboard, userRank } = data;
     if (elements.leaderboardContent) {
@@ -242,7 +264,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
   }
-
   function renderGameInfo(roomState) {
     if (!elements.gameInfo) return;
     const hideGameInfo = ["finished", "readyCheck"].includes(roomState.status);
@@ -275,7 +296,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
   }
-
   function renderPlayerList(players) {
     if (!elements.playerListContent) return;
     elements.playerListContent.innerHTML = "";
@@ -292,10 +312,9 @@ document.addEventListener("DOMContentLoaded", () => {
       elements.playerListContent.appendChild(playerEl);
     });
   }
-
   function renderBoard(roomState) {
+    if (!elements.gameBoard || !roomState.board || !roomState.board[0]) return;
     const { board, playerOrderHistory } = roomState;
-    if (!elements.gameBoard || !board || !board[0]) return;
     const oldPieces = new Map();
     elements.gameBoard.querySelectorAll(".piece").forEach((p) => {
       const cell = p.parentElement;
@@ -332,7 +351,6 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     });
   }
-
   function displayChatMessage(username, text) {
     if (!elements.chatMessages || !state.currentUser) return;
     const messageWrapper = document.createElement("div");
@@ -350,7 +368,6 @@ document.addEventListener("DOMContentLoaded", () => {
     elements.chatMessages.appendChild(messageWrapper);
     elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
   }
-
   function renderReadyCheckUI(roomState) {
     if (!elements.readyCheckModal) return;
     const { readyVotes, players } = roomState;
@@ -363,8 +380,8 @@ document.addEventListener("DOMContentLoaded", () => {
       ? "Aguardando outros..."
       : "Estou Pronto!";
   }
-
   function renderRematchModalUI(roomState) {
+    if (!elements.rematchModal) return;
     startRematchCountdown();
     const { rematchVotes, rematchVoteEndsAt, players, winner } = roomState;
     const myVote = rematchVotes.includes(state.currentUser.userId);
@@ -395,10 +412,6 @@ document.addEventListener("DOMContentLoaded", () => {
       ? "Aguardando outros..."
       : "Jogar Novamente";
   }
-
-  // =============================================
-  // --- FUNÇÕES DE API E LÓGICA DE DADOS ---
-  // =============================================
   async function apiRequest(endpoint, method = "GET", body = null) {
     try {
       const options = {
@@ -419,100 +432,46 @@ document.addEventListener("DOMContentLoaded", () => {
       throw error;
     }
   }
-
-  async function handleLoginSuccess(userData) {
-    state.currentUser = userData.user || {
-      userId: userData.userId,
-      username: userData.username,
-    };
-    await loadLobbyData();
-    render();
-  }
-
-  async function fetchRooms() {
-    try {
-      const rooms = await apiRequest("/rooms");
-      state.availableRooms = rooms;
-      renderRoomList(state.availableRooms);
-    } catch (error) {
-      if (elements.roomList)
-        elements.roomList.innerHTML = "<p>Erro ao carregar salas.</p>";
-    }
-  }
-
-  async function fetchPersonalHistory() {
-    try {
-      const history = await apiRequest("/history/personal");
-      renderPersonalHistory(history);
-    } catch (error) {
-      if (elements.personalHistoryContent)
-        elements.personalHistoryContent.innerHTML =
-          '<tr><td colspan="2">Erro ao carregar histórico.</td></tr>';
-    }
-  }
-
-  async function fetchLeaderboard() {
-    try {
-      const data = await apiRequest("/history/leaderboard-personal");
-      renderLeaderboard(data);
-    } catch (error) {
-      if (elements.leaderboardContent)
-        elements.leaderboardContent.innerHTML =
-          '<tr><td colspan="3">Erro ao carregar ranking.</td></tr>';
-    }
-  }
-
-  async function loadLobbyData() {
-    if (elements.roomList) elements.roomList.innerHTML = "<p>Carregando...</p>";
-    if (elements.personalHistoryContent)
-      elements.personalHistoryContent.innerHTML =
-        '<tr><td colspan="2">Carregando...</td></tr>';
-    if (elements.leaderboardContent)
-      elements.leaderboardContent.innerHTML =
-        '<tr><td colspan="3">Carregando...</td></tr>';
-    await Promise.all([
-      fetchRooms(),
-      fetchPersonalHistory(),
-      fetchLeaderboard(),
-    ]);
-  }
-
   function connectToGame(roomCode) {
     if (state.socket) state.socket.close();
-    localStorage.setItem("currentRoomCode", roomCode);
-    roomClosedByServer = false;
+    stopPing();
+    isLeavingIntentionally = false;
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const host = window.location.host;
-    state.socket = new WebSocket(`${protocol}//${host}?roomCode=${roomCode}`);
+    //state.socket = new WebSocket(`${protocol}//${host}?roomCode=${roomCode}`);
+    state.socket = new WebSocket(`${protocol}//${host}/ws?roomCode=${roomCode}`);
+    state.socket.onopen = () => {
+      pingInterval = setInterval(() => {
+        // Envia o ping apenas se a conexão ainda estiver aberta
+        if (state.socket && state.socket.readyState === WebSocket.OPEN) {
+          state.socket.send(JSON.stringify({ type: "PING" }));
+        }
+      }, 15000); // 15 segundos
+    };
     state.socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
       const { type, payload } = data;
       switch (type) {
         case "ERROR":
-          showSnackbar(`Erro do servidor: ${payload.message}`, "error");
-          if (
+          showSnackbar(`Erro: ${payload.message}`, "error");
+          const isFatalError =
             payload.message.includes("encontrada") ||
-            payload.message.includes("cheia")
-          ) {
-            state.socket?.close();
+            payload.message.includes("cheia") ||
+            payload.message.includes("finalizado");
+          if (isFatalError) {
+            showSnackbar("Retornando ao lobby...", "info", 2000);
+            setTimeout(goToLobby, 2000);
           }
           break;
         case "GAME_STATE_UPDATE":
           state.currentRoom = payload.gameState;
           render();
-          if (payload.gameState.status === "readyCheck") {
-            showSnackbar(
-              "Sala cheia! Todos devem confirmar para começar.",
-              "info"
-            );
-          }
           break;
         case "NEW_MESSAGE":
           displayChatMessage(payload.username, payload.text);
           break;
         case "ROOM_CLOSED":
           showSnackbar(payload.message, "error", 5000);
-          roomClosedByServer = true;
           break;
         case "INFO_MESSAGE":
           showSnackbar(payload.message, "info", 5000);
@@ -521,102 +480,158 @@ document.addEventListener("DOMContentLoaded", () => {
           console.warn(`Tipo de mensagem não tratada: ${type}`);
       }
     };
-    state.socket.onclose = async () => {
-      if (!roomClosedByServer) {
-        showSnackbar("Retornando ao lobby: Você se desconectou.");
+    state.socket.onclose = () => {
+      stopPing();
+      if (isLeavingIntentionally) {
+        goToLobby();
+      } else {
+        showSnackbar(
+          "Conexão perdida. Recarregue a página para reconectar.",
+          "error",
+          10000
+        );
+        state.socket = null;
+        state.currentRoom = null;
+        render();
       }
-      state.socket = null;
-      state.currentRoom = null;
-      localStorage.removeItem("currentRoomCode");
-      await loadLobbyData();
-      render();
     };
   }
-
+  async function handleLoginSuccess(userData) {
+    state.currentUser = userData.user || {
+      userId: userData.userId,
+      username: userData.username,
+    };
+    await loadLobbyData();
+    render();
+  }
+  async function fetchRooms() {
+    if (!elements.roomList) return;
+    try {
+      const rooms = await apiRequest("/rooms");
+      state.availableRooms = rooms;
+      renderRoomList(state.availableRooms);
+    } catch (error) {
+      elements.roomList.innerHTML = "<p>Erro ao carregar salas.</p>";
+    }
+  }
+  async function fetchPersonalHistory() {
+    if (!elements.personalHistoryContent) return;
+    try {
+      const history = await apiRequest("/history/personal");
+      renderPersonalHistory(history);
+    } catch (error) {
+      elements.personalHistoryContent.innerHTML =
+        '<tr><td colspan="2">Erro ao carregar histórico.</td></tr>';
+    }
+  }
+  async function fetchLeaderboard() {
+    if (!elements.leaderboardContent) return;
+    try {
+      const data = await apiRequest("/history/leaderboard-personal");
+      renderLeaderboard(data);
+    } catch (error) {
+      elements.leaderboardContent.innerHTML =
+        '<tr><td colspan="3">Erro ao carregar ranking.</td></tr>';
+    }
+  }
+  async function loadLobbyData() {
+    if (!elements.lobbyDashboard) return;
+    await Promise.all([
+      fetchRooms(),
+      fetchPersonalHistory(),
+      fetchLeaderboard(),
+    ]);
+  }
   function showSnackbar(message, type = "info", duration = 4000) {
     const container = document.getElementById("snackbar-container");
     if (!container) return;
-    const existingSnackbar = container.querySelector(".snackbar");
-    if (existingSnackbar) existingSnackbar.remove();
     const snackbar = document.createElement("div");
-    snackbar.className = `snackbar ${type}`;
+    snackbar.className = `snackbar ${type} show`;
     snackbar.textContent = message;
     container.appendChild(snackbar);
-    requestAnimationFrame(() => {
-      snackbar.classList.add("show");
-    });
     setTimeout(() => {
       snackbar.classList.remove("show");
       snackbar.addEventListener("transitionend", () => snackbar.remove());
     }, duration);
   }
 
-  // =============================================
   // --- EVENT LISTENERS ---
-  // =============================================
-  elements.registerForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    try {
-      const data = await apiRequest("/auth/register", "POST", {
-        username: e.target.username.value,
-        password: e.target.password.value,
-      });
-      await handleLoginSuccess(data);
-    } catch (error) {
-      showSnackbar(`Erro no registro: ${error.message}`, "error");
-    }
-  });
-
-  elements.loginForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    try {
-      const data = await apiRequest("/auth/login", "POST", {
-        username: e.target.username.value,
-        password: e.target.password.value,
-      });
-      await handleLoginSuccess(data);
-    } catch (error) {
-      showSnackbar(`Falha no login: ${error.message}`, "error");
-    }
-  });
-
-  elements.logoutBtn.addEventListener("click", async () => {
-    try {
-      if (state.socket && state.socket.readyState === WebSocket.OPEN) {
+  if (elements.registerForm) {
+    elements.registerForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const isUsernameValid = validateFrontendUsername();
+      const isPasswordValid = validateFrontendPassword();
+      if (!isUsernameValid || !isPasswordValid) {
+        showSnackbar("Por favor, corrija os erros no formulário.", "error");
+        return;
+      }
+      try {
+        const data = await apiRequest("/auth/register", "POST", {
+          username: elements.registerUsernameInput.value,
+          password: elements.registerPasswordInput.value,
+        });
+        await handleLoginSuccess(data);
+      } catch (error) {
+        showSnackbar(`Erro no registro: ${error.message}`, "error");
+      }
+    });
+  }
+  if (elements.loginForm) {
+    elements.loginForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      try {
+        const data = await apiRequest("/auth/login", "POST", {
+          username: e.target.username.value,
+          password: e.target.password.value,
+        });
+        await handleLoginSuccess(data);
+      } catch (error) {
+        showSnackbar(`Falha no login: ${error.message}`, "error");
+      }
+    });
+  }
+  if (elements.logoutBtn) {
+    elements.logoutBtn.addEventListener("click", async () => {
+      isLeavingIntentionally = true;
+      try {
+        if (state.socket && state.socket.readyState === WebSocket.OPEN)
+          state.socket.send(JSON.stringify({ type: "LEAVE_ROOM" }));
+        await apiRequest("/auth/logout", "POST");
+      } catch (error) {
+        console.error("Erro na API de logout:", error);
+      } finally {
+        if (state.socket) {
+          state.socket.onclose = null;
+          state.socket.close();
+        }
+        state.currentUser = null;
+        goToLobby();
+      }
+    });
+  }
+  if (elements.leaveRoomBtn) {
+    elements.leaveRoomBtn.addEventListener("click", () => {
+      isLeavingIntentionally = true;
+      if (state.socket && state.socket.readyState === WebSocket.OPEN)
         state.socket.send(JSON.stringify({ type: "LEAVE_ROOM" }));
+    });
+  }
+  if (elements.createRoomBtn) {
+    elements.createRoomBtn.addEventListener("click", async () => {
+      try {
+        const data = await apiRequest("/rooms", "POST");
+        goToGame(data.roomCode);
+      } catch (error) {
+        showSnackbar(
+          `Não foi possível criar a sala: ${error.message}`,
+          "error"
+        );
       }
-      await apiRequest("/auth/logout", "POST");
-    } catch (error) {
-      console.error("Erro na API de logout:", error);
-    } finally {
-      if (state.socket) {
-        state.socket.onclose = null;
-        state.socket.close();
-      }
-      state.currentUser = null;
-      state.currentRoom = null;
-      localStorage.removeItem("currentRoomCode");
-      render();
-    }
-  });
-
-  elements.leaveRoomBtn.addEventListener("click", () => {
-    if (state.socket && state.socket.readyState === WebSocket.OPEN) {
-      state.socket.send(JSON.stringify({ type: "LEAVE_ROOM" }));
-    }
-  });
-
-  elements.createRoomBtn.addEventListener("click", async () => {
-    try {
-      const data = await apiRequest("/rooms", "POST");
-      connectToGame(data.roomCode);
-    } catch (error) {
-      showSnackbar(`Não foi possível criar a sala: ${error.message}`, "error");
-    }
-  });
-
-  elements.refreshRoomsBtn.addEventListener("click", loadLobbyData);
-
+    });
+  }
+  if (elements.refreshRoomsBtn) {
+    elements.refreshRoomsBtn.addEventListener("click", loadLobbyData);
+  }
   function handleColumnClick(column) {
     if (state.socket && state.currentRoom?.status === "playing") {
       const currentPlayerId =
@@ -630,7 +645,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
   }
-
   if (elements.chatForm) {
     elements.chatForm.addEventListener("submit", (e) => {
       e.preventDefault();
@@ -646,47 +660,135 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   }
+  if (elements.readyCheckBtn) {
+    elements.readyCheckBtn.addEventListener("click", () => {
+      if (state.socket)
+        state.socket.send(JSON.stringify({ type: "VOTE_READY" }));
+    });
+  }
+  if (elements.readyCheckDeclineBtn) {
+    elements.readyCheckDeclineBtn.addEventListener("click", () => {
+      isLeavingIntentionally = true;
+      if (state.socket)
+        state.socket.send(JSON.stringify({ type: "LEAVE_ROOM" }));
+    });
+  }
+  if (elements.rematchModalAcceptBtn) {
+    elements.rematchModalAcceptBtn.addEventListener("click", () => {
+      if (state.socket)
+        state.socket.send(JSON.stringify({ type: "VOTE_REMATCH" }));
+    });
+  }
+  if (elements.rematchModalDeclineBtn) {
+    elements.rematchModalDeclineBtn.addEventListener("click", () => {
+      isLeavingIntentionally = true;
+      if (state.socket)
+        state.socket.send(JSON.stringify({ type: "LEAVE_ROOM" }));
+    });
+  }
+  if (elements.playerListToggle) {
+    elements.playerListToggle.addEventListener("click", () => {
+      if (elements.playerListContent) {
+        elements.playerListContent.classList.toggle("collapsed");
+        elements.playerListToggle.classList.toggle("expanded");
+      }
+    });
+  }
+  if (elements.registerUsernameInput) {
+    elements.registerUsernameInput.addEventListener(
+      "input",
+      validateFrontendUsername
+    );
+  }
+  if (elements.registerPasswordInput) {
+    elements.registerPasswordInput.addEventListener(
+      "input",
+      validateFrontendPassword
+    );
+  }
 
-  elements.readyCheckBtn.addEventListener("click", () => {
-    if (state.socket) state.socket.send(JSON.stringify({ type: "VOTE_READY" }));
-  });
-
-  elements.readyCheckDeclineBtn.addEventListener("click", () => {
-    if (state.socket) state.socket.send(JSON.stringify({ type: "LEAVE_ROOM" }));
-  });
-
-  elements.rematchModalAcceptBtn.addEventListener("click", () => {
-    if (state.socket) {
-      state.socket.send(JSON.stringify({ type: "VOTE_REMATCH" }));
+  // --- FUNÇÕES DE VALIDAÇÃO DO FRONTEND ---
+  function validateFrontendUsername() {
+    if (!elements.registerUsernameInput) return true;
+    const username = elements.registerUsernameInput.value;
+    const feedbackEl = elements.usernameFeedback;
+    if (username.length > 0 && (username.length < 7 || username.length > 10)) {
+      feedbackEl.textContent = "Deve ter entre 7 e 10 caracteres.";
+      feedbackEl.className = "form-feedback";
+      return false;
     }
-  });
-
-  elements.rematchModalDeclineBtn.addEventListener("click", () => {
-    if (state.socket) {
-      state.socket.send(JSON.stringify({ type: "LEAVE_ROOM" }));
+    if (
+      username.length > 0 &&
+      !(/[a-zA-Z]/.test(username) && /[0-9]/.test(username))
+    ) {
+      feedbackEl.textContent = "Deve conter letras e números.";
+      feedbackEl.className = "form-feedback";
+      return false;
     }
-  });
+    if (username.length > 0) {
+      feedbackEl.textContent = "Usuário válido!";
+      feedbackEl.className = "form-feedback valid";
+    } else {
+      feedbackEl.textContent = "";
+    }
+    return true;
+  }
+  function validateFrontendPassword() {
+    if (!elements.registerPasswordInput) return true;
+    const password = elements.registerPasswordInput.value;
+    const feedbackEl = elements.passwordFeedback;
+    if (password.length > 0 && !/[A-Z]/.test(password)) {
+      feedbackEl.textContent = "Deve conter ao menos uma letra maiúscula.";
+      feedbackEl.className = "form-feedback";
+      return false;
+    }
+    if (password.length > 0 && !/[0-9]/.test(password)) {
+      feedbackEl.textContent = "Deve conter ao menos um número.";
+      feedbackEl.className = "form-feedback";
+      return false;
+    }
+    if (password.length > 0 && password.length < 8) {
+      feedbackEl.textContent = "A senha deve ter no mínimo 8 caracteres.";
+      feedbackEl.className = "form-feedback";
+      return false;
+    }
+    if (password.length > 0) {
+      feedbackEl.textContent = "Senha segura!";
+      feedbackEl.className = "form-feedback valid";
+    } else {
+      feedbackEl.textContent = "";
+    }
+    return true;
+  }
 
-  elements.playerListToggle.addEventListener("click", () => {
-    elements.playerListContent.classList.toggle("collapsed");
-    elements.playerListToggle.classList.toggle("expanded");
-  });
-
+  // --- FUNÇÃO DE INICIALIZAÇÃO DA APLICAÇÃO ---
   async function initializeApp() {
     try {
       const data = await apiRequest("/auth/status");
       if (data.isAuthenticated) {
         state.currentUser = data.user;
-        const lastRoomCode = localStorage.getItem("currentRoomCode");
-        if (lastRoomCode) {
-          connectToGame(lastRoomCode);
-        } else {
-          await loadLobbyData();
-          render();
+        const roomCodeFromStorage = localStorage.getItem("currentRoomCode");
+        if (elements.gameScreen) {
+          if (roomCodeFromStorage) {
+            connectToGame(roomCodeFromStorage);
+          } else {
+            goToLobby();
+          }
+        } else if (elements.lobbyDashboard) {
+          if (roomCodeFromStorage) {
+            goToGame(roomCodeFromStorage);
+          } else {
+            await loadLobbyData();
+            render();
+          }
         }
       } else {
-        state.currentUser = null;
-        render();
+        if (elements.gameScreen) {
+          goToLobby();
+        } else {
+          state.currentUser = null;
+          render();
+        }
       }
     } catch (error) {
       state.currentUser = null;

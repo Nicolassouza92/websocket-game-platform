@@ -1,9 +1,11 @@
+/* C:/Users/Nicolas/alphaedtech/websockets/plataform-de-jogos/frontend/src/index.css */
+
 /* ============================================= */
 /* --- Variáveis Globais (Paleta de Cores) --- */
 /* ============================================= */
 :root {
-  --bg-main: #1a202c;
-  --bg-surface: #2d3748;
+  --bg-main: #19202d;
+  --bg-surface: #1c263c;
   --text-primary: #e2e8f0;
   --text-secondary: #a0aec0;
   --border-color: #4a5568;
@@ -40,6 +42,11 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   min-height: 100vh;
   font-size: 16px;
+  background-image: radial-gradient(
+    ellipse at top,
+    #1e1f2c,
+    var(--bg-main) 70%
+  );
 }
 
 h1,
@@ -62,6 +69,7 @@ h3 {
   z-index: 10;
   position: sticky;
   top: 0;
+  border-bottom: 2px solid var(--accent-color);
 }
 
 .logo {
@@ -84,27 +92,77 @@ h3 {
   border-radius: 6px;
   transition: all 0.2s ease;
   background-color: var(--accent-color);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
+
 .nav-links a:hover {
   filter: brightness(1.15);
+}
+
+/* 2. ADICIONE ESTA NOVA REGRA PARA AJUSTAR APENAS O TEXTO */
+.nav-links a span {
+  position: relative;
+  top: -1px; /* Ajusta a posição do texto 1px para baixo */
+}
+
+.logo img {
+  height: 40px; /* Define a altura do logo. Você pode ajustar este valor. */
+  width: auto; /* A largura se ajusta automaticamente para manter a proporção. */
+  display: block; /* Remove qualquer espaço extra abaixo da imagem. */
 }
 
 /* ============================================= */
 /* --- Container Principal --- */
 /* ============================================= */
 .container {
-  max-width: 1200px;
+  max-width: 1100px;
   margin: 0 auto;
   padding: 2rem;
 }
 
 /* ============================================= */
-/* --- NOVA SEÇÃO: HERO --- */
+/* --- Seção HERO --- */
 /* ============================================= */
 .hero-section {
   text-align: center;
-  padding: 4rem 1rem;
+  padding: 4rem 2rem;
+  background-color: var(--bg-surface);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  position: relative;
+  overflow: hidden;
+  /* NOVO: Adiciona a transição para o efeito hover */
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
+
+/* NOVO: Efeito Hover */
+.hero-section:hover,
+.feature-card:hover,
+.data-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.25);
+}
+
+/* Borda superior com gradiente */
+.hero-section::before,
+.feature-card::before,
+.data-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background-image: linear-gradient(
+    to right,
+    var(--accent-color),
+    var(--success-color)
+  );
+}
+
 .welcome-title {
   font-size: 3rem;
   font-weight: 700;
@@ -135,7 +193,7 @@ h3 {
 }
 
 /* ============================================= */
-/* --- NOVA SEÇÃO: FEATURES --- */
+/* --- Seção FEATURES --- */
 /* ============================================= */
 .features-grid {
   display: grid;
@@ -148,12 +206,12 @@ h3 {
   border-radius: 8px;
   text-align: center;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  position: relative;
+  overflow: hidden;
+  /* NOVO: Adiciona a transição para o efeito hover */
   transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
-.feature-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
-}
+
 .feature-card svg {
   color: var(--accent-color);
   margin-bottom: 1rem;
@@ -231,7 +289,6 @@ h3 {
   border: 2px solid var(--player2-shadow);
 }
 
-/* NOVA Animação de Pulsação */
 @keyframes pulse {
   0%,
   100% {
@@ -260,7 +317,6 @@ h3 {
   text-align: center;
   color: var(--text-primary);
 }
-/* NOVA Seção de Dados (2 colunas) */
 .data-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -271,6 +327,10 @@ h3 {
   border-radius: 8px;
   padding: 1.5rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  position: relative;
+  overflow: hidden;
+  /* NOVO: Adiciona a transição para o efeito hover */
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 .data-card h3 {
   font-size: 1.25rem;
@@ -280,17 +340,19 @@ h3 {
 .table {
   width: 100%;
   border-collapse: collapse;
-  background-color: transparent; /* A cor vem do data-card */
+  background-color: transparent;
   border-radius: 0;
   overflow: hidden;
   box-shadow: none;
 }
 .table th {
-  background-color: var(--bg-main);
+  background-color: transparent;
   padding: 1rem;
   text-align: left;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  font-size: 0.8rem;
   border-bottom: 1px solid var(--border-color);
 }
 .table td {
@@ -302,7 +364,7 @@ h3 {
   border-bottom: none;
 }
 .table tr:hover {
-  background-color: #354155;
+  background-color: #2e3748;
 }
 .winner {
   color: var(--success-color);
@@ -310,7 +372,7 @@ h3 {
 }
 .table th:last-child,
 .table td:last-child {
-  text-align: center;
+  text-align: right;
 }
 
 /* ============================================= */
@@ -363,14 +425,13 @@ h3 {
 }
 
 @media (min-width: 992px) {
-  /* Ativa o grid de 2 colunas para as tabelas em telas maiores */
   .data-grid {
     grid-template-columns: 1fr 1fr;
   }
 }
 
-/* =es=========================================== */
-/* --- Estilização da Barra de Rolagem --- */
+/* ============================================= */
+/* --- Barra de Rolagem (Scrollbar) --- */
 /* ============================================= */
 ::-webkit-scrollbar {
   width: 8px;
