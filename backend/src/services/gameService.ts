@@ -390,6 +390,13 @@ function processRematchVotes(room: GameState) {
           message: `${player.username} não votou e foi removido da sala.`,
         },
       });
+      if (player.ws && player.ws.readyState === WebSocket.OPEN) {
+        sendError(
+          player.ws,
+          "Você não votou na revanche e foi removido da sala.",
+          false
+        );
+      }
       handlePlayerLeave(player.ws, room.roomCode, player.id);
     });
   }
@@ -645,7 +652,8 @@ function getGameStateForClient(room: GameState): GameStateForClient {
   );
   const hostName = hostPlayer?.username || "Desconhecido";
 
-  return {
+  // ALTERAÇÃO: Criamos um objeto base sem os timers
+  const clientState: GameStateForClient = {
     roomCode: room.roomCode,
     hostId: room.hostId,
     hostName: hostName,
@@ -660,10 +668,19 @@ function getGameStateForClient(room: GameState): GameStateForClient {
     currentPlayerIndex: room.currentPlayerIndex,
     status: room.status,
     winner: room.winner,
-    turnEndsAt: room.turnEndsAt,
     sessionWins: Object.fromEntries(room.sessionWins.entries()),
     readyVotes: room.readyVotes,
     rematchVotes: room.rematchVotes,
-    rematchVoteEndsAt: room.rematchVoteEndsAt,
+    // Note que turnEndsAt e rematchVoteEndsAt foram REMOVIDOS daqui
   };
+
+  // ALTERAÇÃO: Adicionamos as durações condicionalmente
+  if (room.status === "playing" && room.turnEndsAt) {
+    clientState.turnDuration = TURN_DURATION_MS;
+  }
+  if (room.status === "finished" && room.rematchVoteEndsAt) {
+    clientState.rematchVoteDuration = REMATCH_VOTE_DURATION_MS;
+  }
+
+  return clientState;
 }

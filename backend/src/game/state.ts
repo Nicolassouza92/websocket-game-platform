@@ -49,8 +49,8 @@ export interface GameStateForClient {
   status: "waiting" | "readyCheck" | "playing" | "finished";
   winner?: PlayerId | null;
   sessionWins: { [key: number]: number };
-  turnEndsAt?: number;
+  turnDuration?: number;
   readyVotes: PlayerId[];
   rematchVotes: PlayerId[];
-  rematchVoteEndsAt?: number;
+  rematchVoteDuration?: number;
 }
