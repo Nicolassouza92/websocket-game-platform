@@ -8,7 +8,6 @@
 
 
 <p align="center">
-  <img src="https://img.shields.io/badge/status-em%20desenvolvimento-yellow" alt="Status do Projeto">
   <img src="https://img.shields.io/badge/javascript-ES6%2B-yellow?logo=javascript&logoColor=white" alt="JavaScript">
   <img src="https://img.shields.io/badge/typescript-5.4-blue?logo=typescript&logoColor=white" alt="TypeScript">
   <img src="https://img.shields.io/badge/node.js-20.x-green?logo=node.js&logoColor=white" alt="Node.js">
@@ -25,7 +24,6 @@
 - [Estrutura do Projeto](#-estrutura-do-projeto)
 - [Como Executar o Projeto](#-como-executar-o-projeto)
 - [Demonstração Visual](#️-demonstração-visual)
-- [Próximos Passos](#-próximos-passos)
 - [Autor](#-autor)
 
 ## ✨ Visão Geral do Projeto
