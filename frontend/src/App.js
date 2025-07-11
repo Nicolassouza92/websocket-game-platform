@@ -352,22 +352,40 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
   function displayChatMessage(username, text) {
-    if (!elements.chatMessages || !state.currentUser) return;
-    const messageWrapper = document.createElement("div");
-    messageWrapper.classList.add("chat-message-wrapper");
-    const messageBubble = document.createElement("div");
-    messageBubble.classList.add("message-bubble");
-    if (username === state.currentUser.username) {
-      messageWrapper.classList.add("my-message");
-      messageBubble.innerHTML = `<p class="message-content">${text}</p>`;
-    } else {
-      messageWrapper.classList.add("other-message");
-      messageBubble.innerHTML = `<span class="message-author">${username}</span><p class="message-content">${text}</p>`;
-    }
-    messageWrapper.appendChild(messageBubble);
-    elements.chatMessages.appendChild(messageWrapper);
-    elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+  if (!elements.chatMessages || !state.currentUser) return;
+
+  const messageWrapper = document.createElement("div");
+  messageWrapper.classList.add("chat-message-wrapper");
+
+  const messageBubble = document.createElement("div");
+  messageBubble.classList.add("message-bubble");
+
+  // Cria o parágrafo para o conteúdo da mensagem de forma segura
+  const contentP = document.createElement("p");
+  contentP.classList.add("message-content");
+  contentP.innerText = text; // <-- A MUDANÇA CRUCIAL: usa innerText
+
+  if (username === state.currentUser.username) {
+    // Para as próprias mensagens, só precisamos do conteúdo
+    messageWrapper.classList.add("my-message");
+    messageBubble.appendChild(contentP);
+  } else {
+    // Para mensagens de outros, adicionamos o nome do autor primeiro
+    messageWrapper.classList.add("other-message");
+
+    // Cria o span para o nome do autor de forma segura
+    const authorSpan = document.createElement("span");
+    authorSpan.classList.add("message-author");
+    authorSpan.innerText = username; // <-- Seguro
+
+    messageBubble.appendChild(authorSpan);
+    messageBubble.appendChild(contentP);
   }
+
+  messageWrapper.appendChild(messageBubble);
+  elements.chatMessages.appendChild(messageWrapper);
+  elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+}
   function renderReadyCheckUI(roomState) {
     if (!elements.readyCheckModal) return;
     const { readyVotes, players } = roomState;
@@ -457,7 +475,8 @@ document.addEventListener("DOMContentLoaded", () => {
           const isFatalError =
             payload.message.includes("encontrada") ||
             payload.message.includes("cheia") ||
-            payload.message.includes("finalizado");
+            payload.message.includes("finalizado") ||
+            payload.message.includes("aceitando");
           if (isFatalError) {
             showSnackbar("Retornando ao lobby...", "info", 2000);
             setTimeout(goToLobby, 2000);
