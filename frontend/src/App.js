@@ -330,8 +330,17 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!elements.playerListContent) return;
     elements.playerListContent.innerHTML = "";
     const wins = state.currentRoom.sessionWins || {};
+    const orderForColoring =
+    state.currentRoom.playerOrderHistory.length > 0
+      ? state.currentRoom.playerOrderHistory
+      : state.currentRoom.playerOrder;
     players.forEach((player) => {
       const playerEl = document.createElement("div");
+      const playerIndex = orderForColoring.indexOf(player.id);
+       if (playerIndex !== -1) {
+      // As variáveis de cor (--player1-color, etc.) já existem no seu CSS.
+      playerEl.style.color = `var(--player${playerIndex + 1}-color)`;
+      }
       const statusIcon = player.isOnline ? "🟢" : "🔴";
       const playerWins = wins[player.id];
       let winCounterHTML = "";
