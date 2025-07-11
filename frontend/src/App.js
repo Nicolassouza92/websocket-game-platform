@@ -586,6 +586,7 @@ document.addEventListener("DOMContentLoaded", () => {
       username: userData.username,
     };
     await loadLobbyData();
+    startRoomListPolling();
     render();
   }
   async function fetchRooms() {
