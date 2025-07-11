@@ -27,7 +27,6 @@ document.addEventListener("DOMContentLoaded", () => {
     passwordFeedback: document.getElementById("password-feedback"),
     loginForm: document.getElementById("loginForm"),
     createRoomBtn: document.getElementById("createRoomBtn"),
-    refreshRoomsBtn: document.getElementById("refreshRoomsBtn"),
     roomList: document.getElementById("roomList"),
     personalHistoryContent: document.getElementById("personalHistoryContent"),
     leaderboardContent: document.getElementById("leaderboardContent"),
@@ -65,6 +64,27 @@ document.addEventListener("DOMContentLoaded", () => {
   let rematchCountdownInterval = null;
   let localRematchEndTime = 0; // NOVO
   let pingInterval = null;
+  let roomListInterval = null;
+
+   function startRoomListPolling() {
+    stopRoomListPolling(); // Garante que não haja múltiplos intervalos rodando
+    
+    // Busca as salas imediatamente uma vez antes de começar o intervalo
+    fetchRooms(); 
+    
+    // Inicia o intervalo para buscar a cada 5 segundos
+    roomListInterval = setInterval(fetchRooms, 5000); 
+    console.log("Atualização automática de salas iniciada.");
+  }
+
+  // Função para parar a busca periódica de salas
+  function stopRoomListPolling() {
+    if (roomListInterval) {
+      clearInterval(roomListInterval);
+      roomListInterval = null;
+      console.log("Atualização automática de salas parada.");
+    }
+  }
 
   // =============================================
   // --- NAVEGAÇÃO E LÓGICA DE PÁGINA ---
@@ -78,6 +98,7 @@ document.addEventListener("DOMContentLoaded", () => {
   localRematchEndTime = 0;
   }
   function goToGame(roomCode) {
+    stopRoomListPolling();
     localStorage.setItem("currentRoomCode", roomCode);
     window.location.href = "game.html";
   }
@@ -655,6 +676,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   if (elements.logoutBtn) {
     elements.logoutBtn.addEventListener("click", async () => {
+      stopRoomListPolling();
       isLeavingIntentionally = true;
       try {
         if (state.socket && state.socket.readyState === WebSocket.OPEN)
@@ -692,9 +714,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   }
-  if (elements.refreshRoomsBtn) {
-    elements.refreshRoomsBtn.addEventListener("click", loadLobbyData);
-  }
+
   function handleColumnClick(column) {
     if (state.socket && state.currentRoom?.status === "playing") {
       const currentPlayerId =
@@ -842,6 +862,7 @@ document.addEventListener("DOMContentLoaded", () => {
             goToGame(roomCodeFromStorage);
           } else {
             await loadLobbyData();
+            startRoomListPolling();
             render();
           }
         }
