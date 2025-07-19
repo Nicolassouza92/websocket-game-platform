@@ -27,7 +27,6 @@ document.addEventListener("DOMContentLoaded", () => {
     passwordFeedback: document.getElementById("password-feedback"),
     loginForm: document.getElementById("loginForm"),
     createRoomBtn: document.getElementById("createRoomBtn"),
-    refreshRoomsBtn: document.getElementById("refreshRoomsBtn"),
     roomList: document.getElementById("roomList"),
     personalHistoryContent: document.getElementById("personalHistoryContent"),
     leaderboardContent: document.getElementById("leaderboardContent"),
@@ -61,13 +60,45 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   let turnCountdownInterval = null;
+  let localTurnEndTime = 0; // NOVO
   let rematchCountdownInterval = null;
+  let localRematchEndTime = 0; // NOVO
   let pingInterval = null;
+  let roomListInterval = null;
+
+   function startRoomListPolling() {
+    stopRoomListPolling(); // Garante que não haja múltiplos intervalos rodando
+    
+    // Busca as salas imediatamente uma vez antes de começar o intervalo
+    fetchRooms(); 
+    
+    // Inicia o intervalo para buscar a cada 5 segundos
+    roomListInterval = setInterval(fetchRooms, 5000); 
+    console.log("Atualização automática de salas iniciada.");
+  }
+
+  // Função para parar a busca periódica de salas
+  function stopRoomListPolling() {
+    if (roomListInterval) {
+      clearInterval(roomListInterval);
+      roomListInterval = null;
+      console.log("Atualização automática de salas parada.");
+    }
+  }
 
   // =============================================
   // --- NAVEGAÇÃO E LÓGICA DE PÁGINA ---
   // =============================================
+  function stopAllTimers() {
+  if (turnCountdownInterval) clearInterval(turnCountdownInterval);
+  if (rematchCountdownInterval) clearInterval(rematchCountdownInterval);
+  turnCountdownInterval = null;
+  rematchCountdownInterval = null;
+  localTurnEndTime = 0;
+  localRematchEndTime = 0;
+  }
   function goToGame(roomCode) {
+    stopRoomListPolling();
     localStorage.setItem("currentRoomCode", roomCode);
     window.location.href = "game.html";
   }
@@ -159,6 +190,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (turnCountdownInterval) {
       clearInterval(turnCountdownInterval);
       turnCountdownInterval = null;
+      localTurnEndTime = 0; 
     }
   }
   function stopPing() {
@@ -178,6 +210,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (rematchCountdownInterval) {
       clearInterval(rematchCountdownInterval);
       rematchCountdownInterval = null;
+      localRematchEndTime = 0;
     }
   }
   function startRematchCountdown() {
@@ -279,11 +312,8 @@ document.addEventListener("DOMContentLoaded", () => {
       const isMyTurn =
         state.currentUser && currentPlayerId === state.currentUser.userId;
       let timerText = "";
-      if (roomState.turnEndsAt) {
-        const timeLeft = Math.max(
-          0,
-          Math.round((roomState.turnEndsAt - Date.now()) / 1000)
-        );
+      if (localTurnEndTime > 0) {
+        const timeLeft = Math.max(0, Math.round((localTurnEndTime - Date.now()) / 1000));
         const seconds = String(timeLeft).padStart(2, "0");
         timerText = ` (Tempo: ${seconds}s)`;
       }
@@ -300,8 +330,17 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!elements.playerListContent) return;
     elements.playerListContent.innerHTML = "";
     const wins = state.currentRoom.sessionWins || {};
+    const orderForColoring =
+    state.currentRoom.playerOrderHistory.length > 0
+      ? state.currentRoom.playerOrderHistory
+      : state.currentRoom.playerOrder;
     players.forEach((player) => {
       const playerEl = document.createElement("div");
+      const playerIndex = orderForColoring.indexOf(player.id);
+       if (playerIndex !== -1) {
+      // As variáveis de cor (--player1-color, etc.) já existem no seu CSS.
+      playerEl.style.color = `var(--player${playerIndex + 1}-color)`;
+      }
       const statusIcon = player.isOnline ? "🟢" : "🔴";
       const playerWins = wins[player.id];
       let winCounterHTML = "";
@@ -352,22 +391,40 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
   function displayChatMessage(username, text) {
-    if (!elements.chatMessages || !state.currentUser) return;
-    const messageWrapper = document.createElement("div");
-    messageWrapper.classList.add("chat-message-wrapper");
-    const messageBubble = document.createElement("div");
-    messageBubble.classList.add("message-bubble");
-    if (username === state.currentUser.username) {
-      messageWrapper.classList.add("my-message");
-      messageBubble.innerHTML = `<p class="message-content">${text}</p>`;
-    } else {
-      messageWrapper.classList.add("other-message");
-      messageBubble.innerHTML = `<span class="message-author">${username}</span><p class="message-content">${text}</p>`;
-    }
-    messageWrapper.appendChild(messageBubble);
-    elements.chatMessages.appendChild(messageWrapper);
-    elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+  if (!elements.chatMessages || !state.currentUser) return;
+
+  const messageWrapper = document.createElement("div");
+  messageWrapper.classList.add("chat-message-wrapper");
+
+  const messageBubble = document.createElement("div");
+  messageBubble.classList.add("message-bubble");
+
+  // Cria o parágrafo para o conteúdo da mensagem de forma segura
+  const contentP = document.createElement("p");
+  contentP.classList.add("message-content");
+  contentP.innerText = text; // <-- A MUDANÇA CRUCIAL: usa innerText
+
+  if (username === state.currentUser.username) {
+    // Para as próprias mensagens, só precisamos do conteúdo
+    messageWrapper.classList.add("my-message");
+    messageBubble.appendChild(contentP);
+  } else {
+    // Para mensagens de outros, adicionamos o nome do autor primeiro
+    messageWrapper.classList.add("other-message");
+
+    // Cria o span para o nome do autor de forma segura
+    const authorSpan = document.createElement("span");
+    authorSpan.classList.add("message-author");
+    authorSpan.innerText = username; // <-- Seguro
+
+    messageBubble.appendChild(authorSpan);
+    messageBubble.appendChild(contentP);
   }
+
+  messageWrapper.appendChild(messageBubble);
+  elements.chatMessages.appendChild(messageWrapper);
+  elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+}
   function renderReadyCheckUI(roomState) {
     if (!elements.readyCheckModal) return;
     const { readyVotes, players } = roomState;
@@ -396,12 +453,9 @@ document.addEventListener("DOMContentLoaded", () => {
         : "Fim de jogo!";
     }
     let timerText = "";
-    if (rematchVoteEndsAt) {
-      const timeLeft = Math.max(
-        0,
-        Math.round((rematchVoteEndsAt - Date.now()) / 1000)
-      );
-      timerText = `Tempo para votar: ${String(timeLeft).padStart(2, "0")}s`;
+    if (localRematchEndTime > 0) {
+        const timeLeft = Math.max(0, Math.round((localRematchEndTime - Date.now()) / 1000));
+        timerText = `Tempo para votar: ${String(timeLeft).padStart(2, "0")}s`;
     }
     const votesCount = rematchVotes.length;
     const totalPlayers = players.length;
@@ -457,14 +511,52 @@ document.addEventListener("DOMContentLoaded", () => {
           const isFatalError =
             payload.message.includes("encontrada") ||
             payload.message.includes("cheia") ||
-            payload.message.includes("finalizado");
+            payload.message.includes("finalizado") ||
+            payload.message.includes("aceitando") ||
+            payload.message.includes("removido");
           if (isFatalError) {
             showSnackbar("Retornando ao lobby...", "info", 2000);
             setTimeout(goToLobby, 2000);
           }
           break;
         case "GAME_STATE_UPDATE":
-          state.currentRoom = payload.gameState;
+          const oldRoomState = state.currentRoom;
+          const newRoomState = payload.gameState;
+          state.currentRoom = newRoomState;
+
+          // --- LÓGICA DE TIMER CORRIGIDA ---
+
+          // 1. Lógica para o TIMER DE TURNO
+          if (newRoomState.status === "playing" && newRoomState.turnDuration) {
+              // O timer deve (re)iniciar se:
+              // a) O timer não estava rodando antes (início do jogo)
+              // b) OU o jogador da vez mudou
+              const turnChanged = oldRoomState?.currentPlayerIndex !== newRoomState.currentPlayerIndex;
+              if (!turnCountdownInterval || turnChanged) {
+                  console.log(`Timer de turno (re)iniciado para o jogador ${newRoomState.currentPlayerIndex}.`);
+                  localTurnEndTime = Date.now() + newRoomState.turnDuration;
+                  startTurnCountdown();
+              }
+          } else {
+              // Se o jogo não está mais em 'playing', para o timer.
+              if (turnCountdownInterval) {
+                  stopTurnCountdown();
+              }
+          }
+
+          // 2. Lógica para o TIMER DE REVANCHE
+          // Inicia se o jogo acabou de entrar no estado 'finished'
+          if (newRoomState.status === "finished" && newRoomState.rematchVoteDuration && !rematchCountdownInterval) {
+              console.log("Iniciando timer de revanche no cliente.");
+              localRematchEndTime = Date.now() + newRoomState.rematchVoteDuration;
+              startRematchCountdown();
+          } else if (newRoomState.status !== "finished") {
+              // Se o jogo saiu do estado 'finished', para o timer.
+              if (rematchCountdownInterval) {
+                  stopRematchCountdown();
+              }
+          }
+          
           render();
           break;
         case "NEW_MESSAGE":
@@ -480,8 +572,9 @@ document.addEventListener("DOMContentLoaded", () => {
           console.warn(`Tipo de mensagem não tratada: ${type}`);
       }
     };
-    state.socket.onclose = () => {
+     state.socket.onclose = () => {
       stopPing();
+      stopAllTimers(); // Adicione a chamada para limpar os timers!
       if (isLeavingIntentionally) {
         goToLobby();
       } else {
@@ -502,6 +595,7 @@ document.addEventListener("DOMContentLoaded", () => {
       username: userData.username,
     };
     await loadLobbyData();
+    startRoomListPolling();
     render();
   }
   async function fetchRooms() {
@@ -592,6 +686,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   if (elements.logoutBtn) {
     elements.logoutBtn.addEventListener("click", async () => {
+      stopRoomListPolling();
       isLeavingIntentionally = true;
       try {
         if (state.socket && state.socket.readyState === WebSocket.OPEN)
@@ -629,9 +724,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   }
-  if (elements.refreshRoomsBtn) {
-    elements.refreshRoomsBtn.addEventListener("click", loadLobbyData);
-  }
+
   function handleColumnClick(column) {
     if (state.socket && state.currentRoom?.status === "playing") {
       const currentPlayerId =
@@ -779,6 +872,7 @@ document.addEventListener("DOMContentLoaded", () => {
             goToGame(roomCodeFromStorage);
           } else {
             await loadLobbyData();
+            startRoomListPolling();
             render();
           }
         }

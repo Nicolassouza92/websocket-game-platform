@@ -57,32 +57,42 @@
             <button id="createRoomBtn">Criar Nova Sala</button>
             <button id="refreshRoomsBtn">Atualizar</button>
           </div>
-          <div id="roomList">Carregando...</div>
+          <div class="lobby-card-content">
+            <div id="roomList">Carregando...</div>
+          </div>
         </div>
         <div class="lobby-card">
           <h3>Meu Histórico</h3>
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Jogadores</th>
-                <th>Resultado</th>
-              </tr>
-            </thead>
-            <tbody id="personalHistoryContent"></tbody>
-          </table>
+          <!-- INÍCIO DA MODIFICAÇÃO: Conteúdo da tabela envolvido em uma div -->
+          <div class="lobby-card-content">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Jogadores</th>
+                  <th>Resultado</th>
+                </tr>
+              </thead>
+              <tbody id="personalHistoryContent"></tbody>
+            </table>
+          </div>
+          <!-- FIM DA MODIFICAÇÃO -->
         </div>
         <div class="lobby-card">
           <h3>Ranking Global</h3>
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Jogador</th>
-                <th>Vitórias</th>
-              </tr>
-            </thead>
-            <tbody id="leaderboardContent"></tbody>
-          </table>
+          <!-- INÍCIO DA MODIFICAÇÃO: Conteúdo da tabela envolvido em uma div -->
+          <div class="lobby-card-content">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Jogador</th>
+                  <th>Vitórias</th>
+                </tr>
+              </thead>
+              <tbody id="leaderboardContent"></tbody>
+            </table>
+          </div>
+          <!-- FIM DA MODIFICAÇÃO -->
           <div id="userRank" class="user-rank-info hidden"></div>
         </div>
       </div>

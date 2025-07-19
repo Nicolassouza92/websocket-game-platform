@@ -271,7 +271,6 @@ button:disabled {
     var(--bg-darkest) 80%
   );
   flex: 1;
-  overflow-y: auto;
   min-height: 0;
 }
 
@@ -279,16 +278,16 @@ button:disabled {
   background-color: var(--bg-surface);
   border-radius: 12px;
   padding: var(--spacing-md);
-  display: flex;
-  flex-direction: column;
+  display: flex; 
+  flex-direction: column; 
   gap: var(--spacing-md);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
   border: 1px solid var(--border-color);
   position: relative;
   overflow: hidden;
-  /* Garantir largura mínima no mobile */
   min-width: 300px;
   width: 100%;
+  height: 70vh; 
 }
 
 .lobby-card::before {
@@ -322,11 +321,10 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-sm);
-  max-height: 280px;
-  overflow-y: auto;
   padding-right: var(--spacing-xs);
-  /* Garantir largura mínima para o container de salas */
   min-width: 280px;
+  flex-grow: 1; 
+  min-height: 0; 
 }
 
 .room-item {
@@ -378,6 +376,14 @@ button:disabled {
 /* ============================================= */
 /* --- Tabelas Mobile-First --- */
 /* ============================================= */
+.lobby-card-content {
+  flex-grow: 1; 
+  overflow-y: auto; 
+  min-height: 0; 
+  padding-right: 0.5rem; 
+  /* Adicionar scroll suave */
+  scroll-behavior: smooth;
+}
 .data-table {
   width: 100%;
   border-collapse: collapse;
@@ -616,6 +622,7 @@ button:disabled {
     grid-template-columns: 1fr 1fr;
     grid-template-rows: auto auto;
     align-items: start;
+    overflow: visible;
   }
 
   .lobby-card {
